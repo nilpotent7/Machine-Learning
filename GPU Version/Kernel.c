@@ -1,6 +1,7 @@
-void Dot(const __global double *matrix_a, const __global double *matrix_b, __global double *result,
+double* Dot(const double *matrix_a, const double *matrix_b,
          const int rows_a, const int cols_a, const int cols_b)
 {
+    double *result;
 
     for (int x = 0; x < rows_a; x++)
     {
@@ -14,11 +15,15 @@ void Dot(const __global double *matrix_a, const __global double *matrix_b, __glo
             result[y * cols_b + x] = sum;
         }
     }
+
+    return result;
 }
 
-void Transpose(const __global double *matrix, __global double *result,
+double* Transpose(const double *matrix,
                  const int rows, const int cols)
 {
+    double *output_matrix;
+
     for (int x = 0; x < cols; x++)
     {
         for (int y = 0; y < rows; y++)
@@ -26,39 +31,54 @@ void Transpose(const __global double *matrix, __global double *result,
             int index_in = y * cols + x;
             int index_out = x * rows + y;
             
-            result[index_out] = matrix[index_in];
+            output_matrix[index_out] = matrix[index_in];
         }
     }
+
+    return output_matrix;
 }
 
-void Add(const __global double *matrix_a, __global double *matrix_b, __global double *result,
+double* Add(const double *matrix_a, double *matrix_b,
             const int rows, const int cols)
 {
+    double *result;
+
     for (int x = 0; x < rows; x++)
         for (int y = 0; y < cols; y++)
             result[x*cols + y] = matrix_a[x*cols + y] + matrix_b[x*cols + y];
+
+    return result;
 }
 
-void CDot(const int *number, __global double *matrix_a, __global double *result,
+double* CDot(const int *number, double *matrix_a,
              const int rows, const int cols)
 {
+    double *result;
 
     for (int x = 0; x <= rows; x++)
         for (int y = 0; y < cols; y++)
             result[x*cols + y] = *number * matrix_a[x*cols + y];
+
+    return result;
 }
 
-void sigmoid(__global const double *matrixSig, __global double *result,
-             const int rowsSig, const int colsSig)
+double* sigmoid(const double *matrixSig,
+                const int rowsSig, const int colsSig)
 {
+    double  result [6] = {0};
+
     for (int x = 0; x < rowsSig; x++)
         for (int y = 0; y < colsSig; y++)
             result[x*colsSig + y] = 1.0/(1.0+exp(-matrixSig[x*colsSig + y]));
+
+    return result;
 }
 
-double* FeedForward(__global const double *actives, __global const double *weights, __global const double *biases, const int *sizes)
+double* FeedForward(const double *input, const double *weights, const double *biases, const int *sizes, const int position)
 {
-    __global double* WxA  = Dot(weights, actives, sizes[0], 1, sizes[1]);
-    __global double* WApB = Add(WxA, biases, sizes[0], 1);
-    __global double* res  = sigmoid(WApB, sizes[0], 1);
+    double* WxA  = Dot(weights, input, sizes[0], 1, sizes[1]);
+    double* WApB = Add(WxA, biases, sizes[0], 1);
+    double* res  = sigmoid(WApB, sizes[0], 1);
+
+    return res;
 }
