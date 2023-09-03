@@ -1,6 +1,7 @@
-__kernel void Dot(__global const double *matrix_a, __global const double *matrix_b, __global float *result,
-                                const int rows_a, const int cols_a, const int cols_b)
+void Dot(const __global double *matrix_a, const __global double *matrix_b, __global double *result,
+         const int rows_a, const int cols_a, const int cols_b)
 {
+
     for (int x = 0; x < rows_a; x++)
     {
         for (int y = 0; y < cols_b; y++)
@@ -15,9 +16,9 @@ __kernel void Dot(__global const double *matrix_a, __global const double *matrix
     }
 }
 
-__kernel void Transpose(__global const double *input_matrix, __global float *output_matrix,
-                                const int rows, const int cols)
-{    
+void Transpose(const __global double *matrix, __global double *result,
+                 const int rows, const int cols)
+{
     for (int x = 0; x < cols; x++)
     {
         for (int y = 0; y < rows; y++)
@@ -25,32 +26,39 @@ __kernel void Transpose(__global const double *input_matrix, __global float *out
             int index_in = y * cols + x;
             int index_out = x * rows + y;
             
-            output_matrix[index_out] = input_matrix[index_in];
+            result[index_out] = matrix[index_in];
         }
     }
 }
 
-__kernel void Add(__global const double *matrix_a, __global double *matrix_b, __global float *result,
-                                const int rows, const int cols)
-{    
+void Add(const __global double *matrix_a, __global double *matrix_b, __global double *result,
+            const int rows, const int cols)
+{
     for (int x = 0; x < rows; x++)
         for (int y = 0; y < cols; y++)
             result[x*cols + y] = matrix_a[x*cols + y] + matrix_b[x*cols + y];
 }
 
-__kernel void CDot(__global const int *number, __global double *matrix_a, __global float *result,
-                                        const int rows, const int cols)
-{    
+void CDot(const int *number, __global double *matrix_a, __global double *result,
+             const int rows, const int cols)
+{
+
     for (int x = 0; x <= rows; x++)
         for (int y = 0; y < cols; y++)
             result[x*cols + y] = *number * matrix_a[x*cols + y];
 }
 
-__kernel void sigmoid(__global const double *matrix, __global double *result,
-                                const int rows, const int cols)
-{    
-    for (int x = 0; x < rows; x++)
-        for (int y = 0; y < cols; y++)
-            result[x*cols + y] = 1.0/(1.0+exp(-matrix[x*cols + y]));
+void sigmoid(__global const double *matrixSig, __global double *result,
+             const int rowsSig, const int colsSig)
+{
+    for (int x = 0; x < rowsSig; x++)
+        for (int y = 0; y < colsSig; y++)
+            result[x*colsSig + y] = 1.0/(1.0+exp(-matrixSig[x*colsSig + y]));
 }
 
+double* FeedForward(__global const double *actives, __global const double *weights, __global const double *biases, const int *sizes)
+{
+    __global double* WxA  = Dot(weights, actives, sizes[0], 1, sizes[1]);
+    __global double* WApB = Add(WxA, biases, sizes[0], 1);
+    __global double* res  = sigmoid(WApB, sizes[0], 1);
+}
