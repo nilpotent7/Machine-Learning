@@ -1,30 +1,9 @@
+from PIL import Image
 import numpy as np
 import random
 import time
 import os
 
-x=0
-error = []
-
-def FindFiles(directory_path):
-    file_paths = []
-    for root, dirs, files in os.walk(directory_path):
-        for file in files:
-            file_paths.append(os.path.join(root, file))
-    return file_paths
-
-def sigmoid(z):
-    return 1.0/(1.0+np.exp(-z))
-
-def CalculateCost(result, desired):
-    overall_sum = 0
-    for x,y in zip(result, desired):
-        overall_sum += ((x-y)*(x-y))
-    return overall_sum
-
-def CalculateError(result, desired): 
-    e = np.array(desired) - np.array(result)    
-    return e
 
 class Network(object):
     def __init__(self, sizes):
@@ -95,37 +74,106 @@ class Network(object):
         self.weights = [np.load(w) for w in weightsFiles]
         self.biases = [np.load(b) for b in biasesFiles]
 
-net = Network([4, 10, 10, 16, 4])
+def sigmoid(z):
+    return 1.0/(1.0+np.exp(-z))
 
-#net.LoadData("Data")
+def CalculateError(result, desired): 
+    e = np.array(desired) - np.array(result)    
+    return e
 
-inputs = [
-    np.array([1, 0, 1, 0]).reshape(4,1),
-    np.array([1, 0, 0, 1]).reshape(4,1),
-    np.array([0, 1, 1, 0]).reshape(4,1),
-    np.array([0, 0, 1, 1]).reshape(4,1),
-    np.array([0, 1, 0, 1]).reshape(4,1),
-    np.array([1, 1, 0, 0]).reshape(4,1)
-]
+def CalculateCost(Net, TestingSet, DesiredTSet):
+    SumOfSum = 0
+    Total = 0
+    
+    for k,x in enumerate(TestingSet):
+        desired = DesiredTSet[k]
+        result = Net.evaluate(np.array(ReadImage(x)).reshape(2500,1))
+        
+        overall_sum = 0
+        for x,y in zip(result, desired):
+            overall_sum += ((x-y)*(x-y))
+        
+        SumOfSum += overall_sum
+        Total +=1
 
-desired_outputs = [
-    np.array([1, 0, 0, 0]).reshape(4,1),
-    np.array([0, 1, 0, 0]).reshape(4,1),
-    np.array([0, 0, 1, 0]).reshape(4,1),
-    np.array([0, 0, 0, 1]).reshape(4,1),
-    np.array([1, 0, 0, 0]).reshape(4,1),
-    np.array([0, 0, 0, 1]).reshape(4,1)
-]
+    return SumOfSum / Total
 
-print("Learning...")
-s = time.time()
-while x < 500:
-    k = random.randint(0, 5)
-    y = 0
-    while y<500:
-        net.PropogateBackwards(inputs[k], desired_outputs[k], 0.1)
-        y+=1
-    x+=1
-print("Finished in " + str(time.time()-s))
+def FindFiles(directory_path):
+    file_paths = []
+    for root, dirs, files in os.walk(directory_path):
+        for file in files:
+            file_paths.append(os.path.join(root, file))
+    return file_paths
 
-net.SaveData("Model\\Data")
+def ReadImage(fileName):
+    im = Image.open(fileName, 'r')
+    return [x[0] / 255 for x in list(im.getdata())]
+
+
+
+def SetupDesiredNeurons():
+    l = []
+    l.append(np.array([1, 0, 0]).reshape(3,1))
+    l.append(np.array([0, 1, 0]).reshape(3,1))
+    l.append(np.array([0, 0, 1]).reshape(3,1))
+    return l
+
+def SetupDesiredOutputs(I, DN, C):
+    DO = [0] * len(I)
+    for x,i in enumerate(I):
+        if(C[0]  in i):   DO[x] = DN[0]
+        if(C[1]  in i):   DO[x] = DN[1]
+        if(C[2]  in i):   DO[x] = DN[2]
+    return DO
+
+
+Symbols = ["x", "+", "%"]
+BatchSize = 1000
+
+Inputs  = FindFiles("DataSet\\Symbols Large\\Training")
+Testing = FindFiles("DataSet\\Symbols Large\\Testing")
+random.shuffle(Inputs)
+random.shuffle(Testing)
+
+DesiredNeurons = SetupDesiredNeurons()
+DesiredOuputs  = SetupDesiredOutputs(Inputs,  DesiredNeurons, Symbols)
+DesiredOuputsT = SetupDesiredOutputs(Testing, DesiredNeurons, Symbols)
+
+Inputs = [Inputs[i:i + BatchSize] for i in range(0, len(Inputs), BatchSize)]
+
+#net = Network([2500, 128, 128, 128, 3])
+net = Network([10, 8, 8, 5])
+net.SaveData("TestingData")
+exit()
+
+os.system("cls")
+print(f"Initial Cost of the network: {CalculateCost(net, Testing, DesiredOuputsT)}")
+
+input("Hit enter to start learning...")
+print("Now Learning!\n\n")
+
+Fs = time.time()
+
+e = 0
+while e < 10:
+    s2 = time.time()
+
+    for x,batch in enumerate(Inputs):
+        s = time.time()
+        
+        for y,inputPath in enumerate(batch):
+            inputImage = np.array(ReadImage(inputPath)).reshape(2500,1)
+            q=0
+            while q<10:
+                net.PropogateBackwards(inputImage, DesiredOuputs[(x*BatchSize)+y], 0.1)
+                q+=1
+        print(f"Loop {e+1} | Batch {x+1} | Time Took: {str(round(time.time()-s))}s | Cost: {CalculateCost(net, Testing, DesiredOuputsT)}")
+    
+    print(f"Loop Finished! Took {round(time.time() - s2)}s")
+    net.SaveData("Model\\Data4")
+    e+=1    
+
+print("Finished in " + str(time.time()-Fs))
+
+input("Hit enter to save weights and biases...")
+net.SaveData("Model\\Data4")
