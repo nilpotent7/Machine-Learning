@@ -47,20 +47,26 @@ class Network(object):
     
     def PropogateBackwards(self, input, desired_output, learning_rate):
         self.position = 0
-        a2  = self.feedforward (input)
-        a1  = self.evaluate    (input)
+        a1  = self.feedforward (input)
+        a2  = self.feedforward (a1)
+        a3  = self.evaluate    (input)
         
-        a1r = a1.reshape(net.sizes[2])
-        a2r = a2.reshape(net.sizes[1])
+        a1r = a1.reshape(net.sizes[1])
+        a2r = a2.reshape(net.sizes[2])
+        a3r = a3.reshape(net.sizes[3])
         
-        Fn  = np.diag(np.full(net.sizes[2],(1-a1r)*a1r))
-        Fn2 = np.diag(np.full(net.sizes[1],(1-a2r)*a2r))
+        Fn1 = np.diag(np.full(net.sizes[1],(1-a1r)*a1r))
+        Fn2 = np.diag(np.full(net.sizes[2],(1-a2r)*a2r))
+        Fn3 = np.diag(np.full(net.sizes[3],(1-a3r)*a3r))
 
-        s2 = np.dot(np.dot(-2, Fn), CalculateError(a1, desired_output))
-        s1 = np.dot(np.dot(Fn2, np.transpose(self.weights[1])), s2)
+        s3 = np.dot(np.dot(-2, Fn3), CalculateError(a3, desired_output))
+        s2 = np.dot(np.dot(Fn2, np.transpose(self.weights[2])), s3)
+        s1 = np.dot(np.dot(Fn1, np.transpose(self.weights[1])), s2)
 
-        self.weights[1] = self.weights[1] - np.dot(np.dot(learning_rate, s2), np.transpose(a2))
+        self.weights[2] = self.weights[2] - np.dot(np.dot(learning_rate, s3), np.transpose(a2))
+        self.weights[1] = self.weights[1] - np.dot(np.dot(learning_rate, s2), np.transpose(a1))
         self.weights[0] = self.weights[0] - np.dot(np.dot(learning_rate, s1), np.transpose(input))
+        self.biases[2]  = self.biases[2]  - np.dot(learning_rate, s3)
         self.biases[1]  = self.biases[1]  - np.dot(learning_rate, s2)
         self.biases[0]  = self.biases[0]  - np.dot(learning_rate, s1)
 
@@ -81,7 +87,7 @@ class Network(object):
         self.weights = [np.load(w) for w in weightsFiles]
         self.biases = [np.load(b) for b in biasesFiles]
 
-net = Network([4, 10, 4])
+net = Network([4, 10, 10, 4])
 
 #net.LoadData("Data")
 
@@ -103,6 +109,7 @@ desired_outputs = [
     np.array([0, 0, 0, 1]).reshape(4,1)
 ]
 
+print("Learning...")
 s = time.time()
 while x < 500:
     k = random.randint(0, 5)
@@ -113,4 +120,4 @@ while x < 500:
     x+=1
 print("Finished in " + str(time.time()-s))
 
-net.SaveData("Models\\Data")
+net.SaveData("Data2")
