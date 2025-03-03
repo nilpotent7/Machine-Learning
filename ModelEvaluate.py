@@ -1,6 +1,5 @@
 import numpy as np
 from PIL import Image
-import matplotlib.pyplot as plt
 import os
 
 def FindFiles(directory_path):
@@ -29,8 +28,6 @@ class Network(object):
         self.weights = [np.random.randn(y, x)
                         for x, y in zip(sizes[:-1], sizes[1:])]
         self.position = 0
-
-        print(self.weights)
 
     def feedforward(self, a, rounded):
         if(a.shape != (self.sizes[0],1)):
@@ -62,8 +59,34 @@ class Network(object):
         self.weights = [np.load(w) for w in weightsFiles]
         self.biases = [np.load(b) for b in biasesFiles]
 
-c = ["\\", "|", "_", "/"]
+c = ["+", "-", "\\", "x"]
 
-net = Network([4, 2, 2, 4])
-net.LoadData("GPU Version\\TestingData")
-OutputResult(net.evaluate(np.array([1,0,0,1]).reshape(4,1), True), c)
+Inputs = [
+    np.array([
+        0,1,0,
+        1,1,1,
+        0,1,0
+    ]).reshape((9,1)),
+
+    np.array([
+        0,0,0,
+        1,1,1,
+        0,0,0
+    ]).reshape((9,1)),
+
+    np.array([
+        1,0,0,
+        0,1,0,
+        0,0,1
+    ]).reshape((9,1)),
+
+    np.array([
+        1,0,1,
+        0,1,0,
+        1,0,1
+    ]).reshape((9,1))
+]
+
+net = Network([9, 16, 16, 4])
+net.LoadData("Model\\Data")
+OutputResult(net.evaluate(Inputs[1], True), c)

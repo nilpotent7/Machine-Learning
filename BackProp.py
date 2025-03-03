@@ -1,9 +1,17 @@
-from PIL import Image
 import numpy as np
-import random
-import time
+import matplotlib.pyplot as plt
+from tqdm import tqdm
 import os
 
+def sigmoid(z):
+    return 1.0/(1.0+np.exp(-z))
+
+def FindFiles(directory_path):
+    file_paths = []
+    for root, _, files in os.walk(directory_path):
+        for file in files:
+            file_paths.append(os.path.join(root, file))
+    return file_paths
 
 class Network(object):
     def __init__(self, sizes):
@@ -58,10 +66,29 @@ class Network(object):
             k+=1
 
     def SaveData(self, path):
-        for k,x in enumerate(self.weights):
-            np.save(path+f"\\weights{k}", x)
-        for k,x in enumerate(self.biases):
-            np.save(path+f"\\biases{k}", x)
+        os.makedirs(path, exist_ok=True)
+        for k, x in enumerate(self.weights):
+            np.save(os.path.join(path, f"weights{k}.npy"), x)
+        for k, x in enumerate(self.biases):
+            np.save(os.path.join(path, f"biases{k}.npy"), x)
+    
+    def SaveImage(self, path):
+        os.makedirs(path, exist_ok=True)
+        
+        for k, x in enumerate(self.weights):
+            plt.imshow(x, cmap='viridis', aspect='auto')
+            plt.colorbar()
+            plt.title(f'Weights {k}')
+            plt.savefig(os.path.join(path, f"..weights{k}.png"))
+            plt.close()
+        
+        for k, x in enumerate(self.biases):
+            plt.figure(figsize=(len(x), 1))
+            plt.imshow(x.reshape(1, -1), cmap='viridis', aspect='auto')
+            plt.colorbar()
+            plt.title(f'Biases {k}')
+            plt.savefig(os.path.join(path, f"..biases{k}.png"))
+            plt.close()
 
     def LoadDataVar(self, b, w):
         self.weights = w
@@ -74,9 +101,6 @@ class Network(object):
         self.weights = [np.load(w) for w in weightsFiles]
         self.biases = [np.load(b) for b in biasesFiles]
 
-def sigmoid(z):
-    return 1.0/(1.0+np.exp(-z))
-
 def CalculateError(result, desired): 
     e = np.array(desired) - np.array(result)    
     return e
@@ -87,7 +111,7 @@ def CalculateCost(Net, TestingSet, DesiredTSet):
     
     for k,x in enumerate(TestingSet):
         desired = DesiredTSet[k]
-        result = Net.evaluate(np.array(ReadImage(x)).reshape(2500,1))
+        result = Net.evaluate(x)
         
         overall_sum = 0
         for x,y in zip(result, desired):
@@ -98,82 +122,62 @@ def CalculateCost(Net, TestingSet, DesiredTSet):
 
     return SumOfSum / Total
 
-def FindFiles(directory_path):
-    file_paths = []
-    for root, dirs, files in os.walk(directory_path):
-        for file in files:
-            file_paths.append(os.path.join(root, file))
-    return file_paths
+net = Network([9, 16, 16, 4])
 
-def ReadImage(fileName):
-    im = Image.open(fileName, 'r')
-    return [x[0] / 255 for x in list(im.getdata())]
+Inputs = [
+    np.array([
+        0,1,0,
+        1,1,1,
+        0,1,0
+    ]).reshape((9,1)),
 
+    np.array([
+        0,0,0,
+        1,1,1,
+        0,0,0
+    ]).reshape((9,1)),
 
+    np.array([
+        1,0,0,
+        0,1,0,
+        0,0,1
+    ]).reshape((9,1)),
 
-def SetupDesiredNeurons():
-    l = []
-    l.append(np.array([1, 0, 0]).reshape(3,1))
-    l.append(np.array([0, 1, 0]).reshape(3,1))
-    l.append(np.array([0, 0, 1]).reshape(3,1))
-    return l
+    np.array([
+        1,0,1,
+        0,1,0,
+        1,0,1
+    ]).reshape((9,1))
+]
 
-def SetupDesiredOutputs(I, DN, C):
-    DO = [0] * len(I)
-    for x,i in enumerate(I):
-        if(C[0]  in i):   DO[x] = DN[0]
-        if(C[1]  in i):   DO[x] = DN[1]
-        if(C[2]  in i):   DO[x] = DN[2]
-    return DO
+DesiredOuputs = [
+    np.array([
+        1,0,0,0
+    ]).reshape((4,1)),
 
+    np.array([
+        0,1,0,0
+    ]).reshape((4,1)),
 
-Symbols = ["x", "+", "%"]
-BatchSize = 1000
+    np.array([
+        0,0,1,0
+    ]).reshape((4,1)),
 
-Inputs  = FindFiles("DataSet\\Symbols Large\\Training")
-Testing = FindFiles("DataSet\\Symbols Large\\Testing")
-random.shuffle(Inputs)
-random.shuffle(Testing)
+    np.array([
+        0,0,0,1
+    ]).reshape((4,1)),
+]
 
-DesiredNeurons = SetupDesiredNeurons()
-DesiredOuputs  = SetupDesiredOutputs(Inputs,  DesiredNeurons, Symbols)
-DesiredOuputsT = SetupDesiredOutputs(Testing, DesiredNeurons, Symbols)
-
-Inputs = [Inputs[i:i + BatchSize] for i in range(0, len(Inputs), BatchSize)]
-
-#net = Network([2500, 128, 128, 128, 3])
-net = Network([10, 8, 8, 5])
-net.SaveData("TestingData")
-exit()
-
-os.system("cls")
-print(f"Initial Cost of the network: {CalculateCost(net, Testing, DesiredOuputsT)}")
-
-input("Hit enter to start learning...")
 print("Now Learning!\n\n")
 
-Fs = time.time()
+epochs = 250
 
-e = 0
-while e < 10:
-    s2 = time.time()
+for e in tqdm(range(epochs), desc="Epoch Progress"):
+    for x in range(len(Inputs)):
+        for q in range(100):
+            net.PropogateBackwards(Inputs[x], DesiredOuputs[x], 0.1)
 
-    for x,batch in enumerate(Inputs):
-        s = time.time()
-        
-        for y,inputPath in enumerate(batch):
-            inputImage = np.array(ReadImage(inputPath)).reshape(2500,1)
-            q=0
-            while q<10:
-                net.PropogateBackwards(inputImage, DesiredOuputs[(x*BatchSize)+y], 0.1)
-                q+=1
-        print(f"Loop {e+1} | Batch {x+1} | Time Took: {str(round(time.time()-s))}s | Cost: {CalculateCost(net, Testing, DesiredOuputsT)}")
-    
-    print(f"Loop Finished! Took {round(time.time() - s2)}s")
-    net.SaveData("Model\\Data4")
-    e+=1    
-
-print("Finished in " + str(time.time()-Fs))
-
-input("Hit enter to save weights and biases...")
-net.SaveData("Model\\Data4")
+print("Model Error: " + str(CalculateCost(net, Inputs, DesiredOuputs)))
+print("Finished Learning!")
+net.SaveData("Model\\Data")
+net.SaveImage("Model\\VisualData")

@@ -69,8 +69,6 @@ class Network(object):
         self.biases[1]  = self.biases[1]  - np.dot(learning_rate, s2)
         self.biases[0]  = self.biases[0]  - np.dot(learning_rate, s1)
 
-        #print(np.dot(np.dot(learning_rate, s2), np.transpose(a1)))
-
         print(self.weights)
         print(self.biases)
 
@@ -91,13 +89,25 @@ class Network(object):
         self.weights = [np.load(w) for w in weightsFiles]
         self.biases = [np.load(b) for b in biasesFiles]
 
+def SetupDesiredOutputs(I, DN, C):
+    DO = [0] * len(I)
+    for x,i in enumerate(I):
+        if():   DO[x] = DN[0]
+        if():   DO[x] = DN[1]
+        if():   DO[x] = DN[2]
+        if():   DO[x] = DN[2]
+        if():   DO[x] = DN[2]
+        if():   DO[x] = DN[2]
+    return DO
+
 net = Network([3, 2, 2, 1])
 
 net.LoadData("GPU Version\\TestingData")
 
-inputs = np.array([1, 0, 1]).reshape(3,1).astype(np.float64)
+Inputs = [
+    np.array([1, 0, 1]).reshape(3,1).astype(np.float64)
+]
 desired_outputs = np.array([1]).reshape(1,1).astype(np.float64)
 
-net.PropogateBackwards(inputs, desired_outputs, 0.1)
 
-#net.SaveData("Data2")
+net.PropogateBackwards(Inputs, desired_outputs, 0.1)
