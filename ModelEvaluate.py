@@ -1,6 +1,11 @@
 import numpy as np
 from PIL import Image
 import os
+def sigmoid(z):
+    return 1.0/(1.0+np.exp(-z))
+
+def relu(z):
+    return np.maximum(0, z)
 
 def FindFiles(directory_path):
     file_paths = []
@@ -16,9 +21,6 @@ def OutputResult(output, characterMap):
 def ReadImage(fileName):
     im = Image.open(fileName, 'r')
     return [x[0] / 255 for x in list(im.getdata())]
-
-def sigmoid(z):
-    return 1.0/(1.0+np.exp(-z))
 
 class Network(object):
     def __init__(self, sizes):
@@ -43,7 +45,7 @@ class Network(object):
             raise Exception("Input array shape does not correspond to neurons in input layer.")
         
         for b, w in zip(self.biases, self.weights):
-            a = sigmoid (np.dot(w, a)+b)
+            a = sigmoid(np.dot(w, a)+b)
         if rounded: o = np.round(a, decimals=5)
         else: o = a
         return o
@@ -89,4 +91,6 @@ Inputs = [
 
 net = Network([9, 16, 16, 4])
 net.LoadData("Model\\Data")
-OutputResult(net.evaluate(Inputs[1], True), c)
+
+# print("Model Error: " + str(CalculateCost(net, Inputs, DesiredOutputs)))
+OutputResult(net.evaluate(Input, True), c)

@@ -6,6 +6,9 @@ import os
 def sigmoid(z):
     return 1.0/(1.0+np.exp(-z))
 
+def relu(z):
+    return np.maximum(0, z)
+
 def FindFiles(directory_path):
     file_paths = []
     for root, _, files in os.walk(directory_path):
@@ -42,10 +45,10 @@ class Network(object):
             k+=1
         A.pop(0)
         
-        AR = [x.reshape(net.sizes[k+1]) for k,x in enumerate(A)]
-        Fn = [np.diag(np.full(net.sizes[k+1],(1-x)*x)) for k,x in enumerate(AR)]
+        AR = [x.reshape(self.sizes[k+1]) for k,x in enumerate(A)]
+        Fn = [np.diag((1 - x) * x) for _,x in enumerate(AR)]
         
-        S = [np.dot(np.dot(-2, Fn[-1]), CalculateError(A[-1], desired_output))]
+        S = [2 * np.dot(Fn[-1], CalculateError(A[-1], desired_output))]
         k = 2
         while k < len(self.sizes):
             Fni = Fn[-k]
@@ -79,7 +82,7 @@ class Network(object):
             plt.imshow(x, cmap='viridis', aspect='auto')
             plt.colorbar()
             plt.title(f'Weights {k}')
-            plt.savefig(os.path.join(path, f"..weights{k}.png"))
+            plt.savefig(os.path.join(path, f"weights{k}.png"))
             plt.close()
         
         for k, x in enumerate(self.biases):
@@ -87,7 +90,7 @@ class Network(object):
             plt.imshow(x.reshape(1, -1), cmap='viridis', aspect='auto')
             plt.colorbar()
             plt.title(f'Biases {k}')
-            plt.savefig(os.path.join(path, f"..biases{k}.png"))
+            plt.savefig(os.path.join(path, f"biases{k}.png"))
             plt.close()
 
     def LoadDataVar(self, b, w):
@@ -102,7 +105,7 @@ class Network(object):
         self.biases = [np.load(b) for b in biasesFiles]
 
 def CalculateError(result, desired): 
-    e = np.array(desired) - np.array(result)    
+    e = np.array(result) - np.array(desired)
     return e
 
 def CalculateCost(Net, TestingSet, DesiredTSet):
