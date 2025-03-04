@@ -1,10 +1,49 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+
 import os
+import struct
+from array import array
+
+class MnistDataloader(object):
+    def __init__(self, training_images_filepath, training_labels_filepath, test_images_filepath, test_labels_filepath):
+        self.training_images_filepath = training_images_filepath
+        self.training_labels_filepath = training_labels_filepath
+        self.test_images_filepath = test_images_filepath
+        self.test_labels_filepath = test_labels_filepath
+    
+    def read_images_labels(self, images_filepath, labels_filepath):
+        labels = []
+        with open(labels_filepath, 'rb') as file:
+            magic, size = struct.unpack(">II", file.read(8))
+            if magic != 2049:
+                raise ValueError('Magic number mismatch, expected 2049, got {}'.format(magic))
+            labels = array("B", file.read())
+        
+        with open(images_filepath, 'rb') as file:
+            magic, size, rows, cols = struct.unpack(">IIII", file.read(16))
+            if magic != 2051:
+                raise ValueError('Magic number mismatch, expected 2051, got {}'.format(magic))
+            image_data = array("B", file.read())
+        images = []
+        for i in range(size):
+            images.append([0] * rows * cols)
+        for i in range(size):
+            img = np.array(image_data[i * rows * cols:(i + 1) * rows * cols])
+            img = img.reshape(28, 28)
+            images[i][:] = img
+        
+        return images, labels
+        
+    def load_data(self):
+        x_train, y_train = self.read_images_labels(self.training_images_filepath, self.training_labels_filepath)
+        x_test, y_test = self.read_images_labels(self.test_images_filepath, self.test_labels_filepath)
+        return (x_train, y_train),(x_test, y_test)
 
 def sigmoid(z):
-    return 1.0/(1.0+np.exp(-z))
+    z = np.clip(z, -500, 500)
+    return 1.0 / (1.0 + np.exp(-z))
 
 def relu(z):
     return np.maximum(0, z)
@@ -125,62 +164,71 @@ def CalculateCost(Net, TestingSet, DesiredTSet):
 
     return SumOfSum / Total
 
-net = Network([9, 16, 16, 4])
+def ConvertDesiredIntoNeurons(Output):
+    neurons = []
+    for o in Output:
+        match o:
+            case 0:
+                neurons.append(np.array([1,0,0,0,0,0,0,0,0,0]).reshape(10,1))
+            case 1:
+                neurons.append(np.array([0,1,0,0,0,0,0,0,0,0]).reshape(10,1))
+            case 2:
+                neurons.append(np.array([0,0,1,0,0,0,0,0,0,0]).reshape(10,1))
+            case 3:
+                neurons.append(np.array([0,0,0,1,0,0,0,0,0,0]).reshape(10,1))
+            case 4:
+                neurons.append(np.array([0,0,0,0,1,0,0,0,0,0]).reshape(10,1))
+            case 5:
+                neurons.append(np.array([0,0,0,0,0,1,0,0,0,0]).reshape(10,1))
+            case 6:
+                neurons.append(np.array([0,0,0,0,0,0,1,0,0,0]).reshape(10,1))
+            case 7:
+                neurons.append(np.array([0,0,0,0,0,0,0,1,0,0]).reshape(10,1))
+            case 8:
+                neurons.append(np.array([0,0,0,0,0,0,0,0,1,0]).reshape(10,1))
+            case 9:
+                neurons.append(np.array([0,0,0,0,0,0,0,0,0,1]).reshape(10,1))
+    return neurons
 
-Inputs = [
-    np.array([
-        0,1,0,
-        1,1,1,
-        0,1,0
-    ]).reshape((9,1)),
+net = Network([784, 64, 64, 10])
 
-    np.array([
-        0,0,0,
-        1,1,1,
-        0,0,0
-    ]).reshape((9,1)),
+MnistLoader = MnistDataloader("Dataset\\train-images.idx3-ubyte",
+                              "Dataset\\train-labels.idx1-ubyte",
+                              "Dataset\\t10k-images.idx3-ubyte",
+                              "Dataset\\t10k-labels.idx1-ubyte")
+Data = MnistLoader.load_data()
+Inputs = [np.array(x).reshape(784,1)/255 for x in Data[0][0]]
+TestInputs = [np.array(x).reshape(784,1)/255 for x in Data[1][0]]
+DesiredOutputs = ConvertDesiredIntoNeurons(Data[0][1])
+TestDesiredOutputs = ConvertDesiredIntoNeurons(Data[1][1])
 
-    np.array([
-        1,0,0,
-        0,1,0,
-        0,0,1
-    ]).reshape((9,1)),
+epochs = 100
+accuracy = []
 
-    np.array([
-        1,0,1,
-        0,1,0,
-        1,0,1
-    ]).reshape((9,1))
-]
+for e in range(epochs):
+    for x in tqdm(range(len(Inputs)), desc="Epoch Progress"):
+        net.PropogateBackwards(Inputs[x], DesiredOutputs[x], 0.01)
 
-DesiredOuputs = [
-    np.array([
-        1,0,0,0
-    ]).reshape((4,1)),
+    acc = CalculateCost(net, TestInputs, TestDesiredOutputs)
+    accuracy.append(acc)
+    print(f"Epoch {e+1}/{epochs} Cost: {acc}\n")
 
-    np.array([
-        0,1,0,0
-    ]).reshape((4,1)),
+    net.SaveData("Model\\Data")
+    net.SaveImage("Model\\VisualData")
 
-    np.array([
-        0,0,1,0
-    ]).reshape((4,1)),
+    if(e%20 == 0):
+        plt.plot(range(1, len(accuracy) + 1), accuracy, marker='o', linestyle='-', color='b', label='Accuracy %')
+        plt.xlabel('X-axis')
+        plt.ylabel('Y-axis')
+        plt.title('Simple Line Graph')
+        plt.legend()
+        plt.savefig(f"Model\\ProgressTracker\\{e}.png")
 
-    np.array([
-        0,0,0,1
-    ]).reshape((4,1)),
-]
-
-print("Now Learning!\n\n")
-
-epochs = 250
-
-for e in tqdm(range(epochs), desc="Epoch Progress"):
-    for x in range(len(Inputs)):
-        for q in range(100):
-            net.PropogateBackwards(Inputs[x], DesiredOuputs[x], 0.1)
-
-print("Model Error: " + str(CalculateCost(net, Inputs, DesiredOuputs)))
-print("Finished Learning!")
-net.SaveData("Model\\Data")
-net.SaveImage("Model\\VisualData")
+# Create the plot
+plt.plot(range(1, len(accuracy) + 1), accuracy, marker='o', linestyle='-', color='b', label='Accuracy %')
+plt.xlabel('X-axis')
+plt.ylabel('Y-axis')
+plt.title('Simple Line Graph')
+plt.legend()
+plt.savefig(f"Model\\ProgressTracker\\Final.png")
+plt.show()
