@@ -44,7 +44,7 @@ class Network(object):
             a = sigmoid(np.dot(w, a)+b)
         return a
     
-    def PropogateBackwards(self, input, desired_output, learning_rate):
+    def Backpropagate(self, input, desired_output, learning_rate):
         self.position = 0
         a1  = self.feedforward (input)
         a2  = self.feedforward (a1)
@@ -110,4 +110,4 @@ Inputs = [
 desired_outputs = np.array([1]).reshape(1,1).astype(np.float64)
 
 
-net.PropogateBackwards(Inputs, desired_outputs, 0.1)
+net.Backpropagate(Inputs, desired_outputs, 0.1)

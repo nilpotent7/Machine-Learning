@@ -6,6 +6,27 @@ import os
 import struct
 from array import array
 
+def z_score_standardize(data):
+    mean = np.mean(data, axis=0)
+    std = np.std(data, axis=0)
+    std[std == 0] = 1
+    standardized_data = (data - mean) / std
+    return standardized_data
+
+def sigmoid(z):
+    z = np.clip(z, -500, 500)
+    return 1.0 / (1.0 + np.exp(-z))
+
+def sigmoid_prime(a):
+    return a * (1 - a)
+
+def FindFiles(directory_path):
+    file_paths = []
+    for root, _, files in os.walk(directory_path):
+        for file in files:
+            file_paths.append(os.path.join(root, file))
+    return file_paths
+
 class MnistDataloader(object):
     def __init__(self, training_images_filepath, training_labels_filepath, test_images_filepath, test_labels_filepath):
         self.training_images_filepath = training_images_filepath
@@ -41,71 +62,44 @@ class MnistDataloader(object):
         x_test, y_test = self.read_images_labels(self.test_images_filepath, self.test_labels_filepath)
         return (x_train, y_train),(x_test, y_test)
 
-def sigmoid(z):
-    z = np.clip(z, -500, 500)
-    return 1.0 / (1.0 + np.exp(-z))
-
-def relu(z):
-    return np.maximum(0, z)
-
-def FindFiles(directory_path):
-    file_paths = []
-    for root, _, files in os.walk(directory_path):
-        for file in files:
-            file_paths.append(os.path.join(root, file))
-    return file_paths
-
 class Network(object):
     def __init__(self, sizes):
         self.num_layers = len(sizes)
         self.sizes = sizes
         self.biases  = [np.random.randn(y, 1) for y in sizes[1:]]
-        self.weights = [np.random.randn(y, x)
-                        for x, y in zip(sizes[:-1], sizes[1:])]
-        self.position = 0
+        self.weights = [np.random.randn(y, x) for x, y in zip(sizes[:-1], sizes[1:])]
 
     def feedforward(self, a):
-        z = sigmoid(np.dot(self.weights[self.position], a) + self.biases[self.position])
-        self.position += 1
-        return z
+        activations = [a]
+        for b, w in zip(self.biases, self.weights):
+            a = sigmoid(np.dot(w, a) + b)
+            activations.append(a)
+        return activations
 
     def evaluate(self, a):
-        for b, w in zip(self.biases, self.weights):
-            a = sigmoid(np.dot(w, a)+b)
+        for i, (b, w) in enumerate(zip(self.biases, self.weights)):
+            a = sigmoid(np.dot(w, a) + b)
         return a
     
     def Backpropagate(self, input, desired_output, learning_rate):
-        self.position = 0
+        activations = [input]
+        a = input
+        for b, w in zip(self.biases, self.weights):
+            z = np.dot(w, a) + b
+            a = sigmoid(z)
+            activations.append(a)
 
-        A = [input]
-        k = 1
-        while k < len(self.sizes):
-            A.append(self.feedforward (A[k-1]))
-            k+=1
-        A.pop(0)
+        delta = (-2 * CalculateError(activations[-1], desired_output)) * sigmoid_prime(activations[-1])
+        deltas = [delta]
         
-        AR = [x.reshape(self.sizes[k+1]) for k,x in enumerate(A)]
-        Fn = [np.diag((1 - x) * x) for _,x in enumerate(AR)]
+        for l in range(2, self.num_layers):
+            sp = sigmoid_prime(activations[-l])
+            delta = np.dot(self.weights[-l+1].T, delta) * sp
+            deltas.insert(0, delta)
         
-        S = [2 * np.dot(Fn[-1], CalculateError(A[-1], desired_output))]
-        k = 2
-        while k < len(self.sizes):
-            Fni = Fn[-k]
-            Wi  = self.weights[len(self.sizes)-k]
-            Si  = S[k-2]
-            S.append(np.dot(np.dot(Fni, np.transpose(Wi)), Si))
-            k+=1
-
-        k = 1
-        while k < len(self.sizes):
-            Wi = self.weights[len(self.sizes)-k-1]
-            Bi = self.biases [len(self.sizes)-k-1]
-            Si = S[k-1]
-            if -(k+1) == -(len(self.sizes)): Ai = input
-            else: Ai = A[-(k+1)]
-            self.weights[len(self.sizes)-k-1] = Wi - np.dot(np.dot(learning_rate, Si), np.transpose(Ai))
-            self.biases [len(self.sizes)-k-1] = Bi - np.dot(learning_rate, Si)
-            k+=1
+        for i in range(len(self.weights)):
+            self.weights[i] += learning_rate * np.dot(deltas[i], activations[i].T)
+            self.biases[i]  += learning_rate * deltas[i]
 
     def SaveData(self, path):
         os.makedirs(path, exist_ok=True)
@@ -151,16 +145,11 @@ def CalculateCost(Net, TestingSet, DesiredTSet):
     SumOfSum = 0
     Total = 0
     
-    for k,x in enumerate(TestingSet):
+    for k, x in enumerate(TestingSet):
         desired = DesiredTSet[k]
         result = Net.evaluate(x)
-        
-        overall_sum = 0
-        for x,y in zip(result, desired):
-            overall_sum += ((x-y)*(x-y))
-        
-        SumOfSum += overall_sum
-        Total +=1
+        SumOfSum += np.sum((result - desired)**2)
+        Total += 1
 
     return SumOfSum / Total
 
@@ -197,8 +186,8 @@ MnistLoader = MnistDataloader("Dataset\\train-images.idx3-ubyte",
                               "Dataset\\t10k-images.idx3-ubyte",
                               "Dataset\\t10k-labels.idx1-ubyte")
 Data = MnistLoader.load_data()
-Inputs = [np.array(x).reshape(784,1)/255 for x in Data[0][0]]
-TestInputs = [np.array(x).reshape(784,1)/255 for x in Data[1][0]]
+Inputs = [z_score_standardize(np.array(x).reshape(784,1)) for x in Data[0][0]]
+TestInputs = [z_score_standardize(np.array(x).reshape(784,1)) for x in Data[1][0]]
 DesiredOutputs = ConvertDesiredIntoNeurons(Data[0][1])
 TestDesiredOutputs = ConvertDesiredIntoNeurons(Data[1][1])
 
@@ -213,20 +202,12 @@ for e in range(epochs):
     accuracy.append(acc)
     print(f"Epoch {e+1}/{epochs} Cost: {acc}\n")
 
-    net.SaveData("Model\\Data")
-    net.SaveImage("Model\\VisualData")
+    net.SaveData("Weights")
+    net.SaveImage("VisualWeights")
 
-    if(e%20 == 0):
-        plt.plot(range(1, len(accuracy) + 1), accuracy, marker='o', linestyle='-', color='b', label='Accuracy %')
-        plt.xlabel('X-axis')
-        plt.ylabel('Y-axis')
-        plt.title('Simple Line Graph')
-        plt.savefig(f"Model\\ProgressTracker\\{e}.png")
-
-# Create the plot
-plt.plot(range(1, len(accuracy) + 1), accuracy, marker='o', linestyle='-', color='b', label='Accuracy %')
-plt.xlabel('X-axis')
-plt.ylabel('Y-axis')
-plt.title('Simple Line Graph')
-plt.savefig(f"Model\\ProgressTracker\\Final.png")
-plt.show()
+    plt.plot(range(1, len(accuracy) + 1), accuracy, linestyle='-', color='b', label='Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy %')
+    plt.title('Accuracy Graph')
+    plt.savefig(f"ProgressTracker\\{e}.png")
+    np.save(f"ProgressTracker\\{e}.npy", np.array(accuracy))

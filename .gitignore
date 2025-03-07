@@ -1,12 +1,7 @@
-DataSet/
-Fonts/
-Test Fonts/
-Trash Fonts/
-*_dataset/
 .vscode/
-Data[1-9]/
-Data/
 *.png
 *.bmp
 *.exe
 *.txt
+*.npy
+Dataset/

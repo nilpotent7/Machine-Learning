@@ -133,7 +133,7 @@ class Network(object):
             a = np.around(sigmoid(np.dot(w, a)+b), 2)
         return a
     
-    def PropogateBackwards(self, input, desired_output, learning_rate):
+    def Backpropagate(self, input, desired_output, learning_rate):
         self.position = 0
         a1  = self.feedforward (input)
         a2  = self.feedforward (a1)
@@ -271,7 +271,7 @@ def PropCPU():
         for k,I in enumerate(Inputs):
             x=0
             while x<500:
-                net.PropogateBackwards(I, DN[DI[k]].reshape(4,1), 1)
+                net.Backpropagate(I, DN[DI[k]].reshape(4,1), 1)
                 x+=1
         y+=1
         if(y%100 == 0):

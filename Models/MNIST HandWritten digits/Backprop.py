@@ -6,6 +6,17 @@ import os
 import struct
 from array import array
 
+def softmax(z):
+    z = np.clip(z, -500, 500)
+    return 1.0 / (1.0 + np.exp(-z))
+
+def FindFiles(directory_path):
+    file_paths = []
+    for root, _, files in os.walk(directory_path):
+        for file in files:
+            file_paths.append(os.path.join(root, file))
+    return file_paths
+
 class MnistDataloader(object):
     def __init__(self, training_images_filepath, training_labels_filepath, test_images_filepath, test_labels_filepath):
         self.training_images_filepath = training_images_filepath
@@ -41,20 +52,6 @@ class MnistDataloader(object):
         x_test, y_test = self.read_images_labels(self.test_images_filepath, self.test_labels_filepath)
         return (x_train, y_train),(x_test, y_test)
 
-def sigmoid(z):
-    z = np.clip(z, -500, 500)
-    return 1.0 / (1.0 + np.exp(-z))
-
-def relu(z):
-    return np.maximum(0, z)
-
-def FindFiles(directory_path):
-    file_paths = []
-    for root, _, files in os.walk(directory_path):
-        for file in files:
-            file_paths.append(os.path.join(root, file))
-    return file_paths
-
 class Network(object):
     def __init__(self, sizes):
         self.num_layers = len(sizes)
@@ -65,13 +62,13 @@ class Network(object):
         self.position = 0
 
     def feedforward(self, a):
-        z = sigmoid(np.dot(self.weights[self.position], a) + self.biases[self.position])
+        z = softmax(np.dot(self.weights[self.position], a) + self.biases[self.position])
         self.position += 1
         return z
 
     def evaluate(self, a):
         for b, w in zip(self.biases, self.weights):
-            a = sigmoid(np.dot(w, a)+b)
+            a = softmax(np.dot(w, a)+b)
         return a
     
     def Backpropagate(self, input, desired_output, learning_rate):
@@ -213,20 +210,12 @@ for e in range(epochs):
     accuracy.append(acc)
     print(f"Epoch {e+1}/{epochs} Cost: {acc}\n")
 
-    net.SaveData("Model\\Data")
-    net.SaveImage("Model\\VisualData")
+    net.SaveData("Weights")
+    net.SaveImage("VisualWeights")
 
-    if(e%20 == 0):
-        plt.plot(range(1, len(accuracy) + 1), accuracy, marker='o', linestyle='-', color='b', label='Accuracy %')
-        plt.xlabel('X-axis')
-        plt.ylabel('Y-axis')
-        plt.title('Simple Line Graph')
-        plt.savefig(f"Model\\ProgressTracker\\{e}.png")
-
-# Create the plot
-plt.plot(range(1, len(accuracy) + 1), accuracy, marker='o', linestyle='-', color='b', label='Accuracy %')
-plt.xlabel('X-axis')
-plt.ylabel('Y-axis')
-plt.title('Simple Line Graph')
-plt.savefig(f"Model\\ProgressTracker\\Final.png")
-plt.show()
+    plt.plot(range(1, len(accuracy) + 1), accuracy, linestyle='-', color='b', label='Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy %')
+    plt.title('Accuracy Graph')
+    plt.savefig(f"ProgressTracker\\{e}.png")
+    np.save(f"ProgressTracker\\{e}.npy", np.array(accuracy))
