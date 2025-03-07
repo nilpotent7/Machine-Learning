@@ -108,7 +108,7 @@ def main():
     root.mainloop()
 
 
-def softmax(z):
+def sigmoid(z):
     z = np.clip(z, -500, 500)
     return 1.0 / (1.0 + np.exp(-z))
 
@@ -167,7 +167,7 @@ class Network(object):
             raise Exception("Input array shape does not correspond to neurons in input layer.")
         
         for b, w in zip(self.biases, self.weights):
-            a = softmax(np.dot(w, a)+b)
+            a = sigmoid(np.dot(w, a)+b)
         if rounded: o = np.round(a, decimals=4) * 100
         else: o = a
         return o

@@ -6,7 +6,7 @@ import os
 import struct
 from array import array
 
-def softmax(z):
+def sigmoid(z):
     z = np.clip(z, -500, 500)
     return 1.0 / (1.0 + np.exp(-z))
 
@@ -62,13 +62,13 @@ class Network(object):
         self.position = 0
 
     def feedforward(self, a):
-        z = softmax(np.dot(self.weights[self.position], a) + self.biases[self.position])
+        z = sigmoid(np.dot(self.weights[self.position], a) + self.biases[self.position])
         self.position += 1
         return z
 
     def evaluate(self, a):
         for b, w in zip(self.biases, self.weights):
-            a = softmax(np.dot(w, a)+b)
+            a = sigmoid(np.dot(w, a)+b)
         return a
     
     def Backpropagate(self, input, desired_output, learning_rate):
