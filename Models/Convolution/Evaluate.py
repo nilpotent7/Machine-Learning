@@ -22,6 +22,24 @@ blur_kernel_2 = np.array([
     1, 4, 6, 4, 1
 ]).reshape(5,5)
 
+embossing = np.array([
+    -2, -1,  0,
+    -1,  1,  1,
+     0,  1,  2,
+]).reshape(3,3)
+
+edge_detect_v = np.array([
+    -1, -2, -1,
+     0,  0,  0,
+     1,  2,  1,
+]).reshape(3,3)
+
+edge_detect_h = np.array([
+    -1,  0,  1,
+    -2,  0,  2,
+    -1,  0,  1,
+]).reshape(3,3)
+
 def FindFiles(directory_path):
     file_paths = []
     for root, _, files in os.walk(directory_path):
@@ -61,9 +79,22 @@ def Blur(array):
     global blur_kernel_2
     return np.sum(array*blur_kernel_2) / 256
 
+def Enhance3D(array):
+    global embossing
+    return np.sum(array*embossing)
+
+def EdgeDetectionHorizontal(array):
+    global edge_detect_h
+    return np.sum(array*edge_detect_h)
+
+def EdgeDetectionVertical(array):
+    global edge_detect_v
+    return np.sum(array*edge_detect_v)
+
 
 Input = LoadImage("Input.png")
-# SharpenConvolution = Convolution(Sharpen, 3)
-BlurConvolution = Convolution(Blur, 5)
-Output = BlurConvolution.Perform(Input)
+Convo = Convolution(EdgeDetectionHorizontal, 3)
+Output = Convo.Perform(Input)
+Convo = Convolution(EdgeDetectionVertical, 3)
+Output = Convo.Perform(Output)
 PrintImage(Output, "Output.png")

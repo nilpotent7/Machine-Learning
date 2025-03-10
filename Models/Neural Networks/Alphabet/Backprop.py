@@ -1,17 +1,7 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-
-import os
-import struct
-from array import array
-
-def z_score_standardize(data):
-    mean = np.mean(data, axis=0)
-    std = np.std(data, axis=0)
-    std[std == 0] = 1
-    standardized_data = (data - mean) / std
-    return standardized_data
 
 def sigmoid(z):
     z = np.clip(z, -500, 500)
@@ -27,40 +17,13 @@ def FindFiles(directory_path):
             file_paths.append(os.path.join(root, file))
     return file_paths
 
-class MnistDataloader(object):
-    def __init__(self, training_images_filepath, training_labels_filepath, test_images_filepath, test_labels_filepath):
-        self.training_images_filepath = training_images_filepath
-        self.training_labels_filepath = training_labels_filepath
-        self.test_images_filepath = test_images_filepath
-        self.test_labels_filepath = test_labels_filepath
-    
-    def read_images_labels(self, images_filepath, labels_filepath):
-        labels = []
-        with open(labels_filepath, 'rb') as file:
-            magic, size = struct.unpack(">II", file.read(8))
-            if magic != 2049:
-                raise ValueError('Magic number mismatch, expected 2049, got {}'.format(magic))
-            labels = array("B", file.read())
-        
-        with open(images_filepath, 'rb') as file:
-            magic, size, rows, cols = struct.unpack(">IIII", file.read(16))
-            if magic != 2051:
-                raise ValueError('Magic number mismatch, expected 2051, got {}'.format(magic))
-            image_data = array("B", file.read())
-        images = []
-        for i in range(size):
-            images.append([0] * rows * cols)
-        for i in range(size):
-            img = np.array(image_data[i * rows * cols:(i + 1) * rows * cols])
-            img = img.reshape(28, 28)
-            images[i][:] = img
-        
-        return images, labels
-        
-    def load_data(self):
-        x_train, y_train = self.read_images_labels(self.training_images_filepath, self.training_labels_filepath)
-        x_test, y_test = self.read_images_labels(self.test_images_filepath, self.test_labels_filepath)
-        return (x_train, y_train),(x_test, y_test)
+def LoadDataset(path="dataset.npz"):
+    data = np.load(path)
+    train_images = data["train_images"]
+    train_labels = [x.reshape(26, 1) for x in data["train_labels"]]
+    test_images = data["test_images"]
+    test_labels = [x.reshape(26, 1) for x in data["test_labels"]]
+    return train_images, train_labels, test_images, test_labels
 
 class Network(object):
     def __init__(self, sizes):
@@ -102,15 +65,12 @@ class Network(object):
             self.biases[i]  += learning_rate * deltas[i]
 
     def SaveData(self, path):
-        os.makedirs(path, exist_ok=True)
         for k, x in enumerate(self.weights):
             np.save(os.path.join(path, f"weights{k}.npy"), x)
         for k, x in enumerate(self.biases):
             np.save(os.path.join(path, f"biases{k}.npy"), x)
     
-    def SaveImage(self, path):
-        os.makedirs(path, exist_ok=True)
-        
+    def SaveImage(self, path):        
         for k, x in enumerate(self.weights):
             plt.imshow(x, cmap='viridis', aspect='auto')
             plt.colorbar()
@@ -179,28 +139,30 @@ def ConvertDesiredIntoNeurons(Output):
                 neurons.append(np.array([0,0,0,0,0,0,0,0,0,1]).reshape(10,1))
     return neurons
 
-net = Network([784, 64, 64, 10])
+net = Network([2500, 32, 32, 26])
 
-MnistLoader = MnistDataloader("Dataset\\train-images.idx3-ubyte",
-                              "Dataset\\train-labels.idx1-ubyte",
-                              "Dataset\\t10k-images.idx3-ubyte",
-                              "Dataset\\t10k-labels.idx1-ubyte")
-Data = MnistLoader.load_data()
-Inputs = [z_score_standardize(np.array(x).reshape(784,1)) for x in Data[0][0]]
-TestInputs = [z_score_standardize(np.array(x).reshape(784,1)) for x in Data[1][0]]
-DesiredOutputs = ConvertDesiredIntoNeurons(Data[0][1])
-TestDesiredOutputs = ConvertDesiredIntoNeurons(Data[1][1])
+Train, TrainL, Test, TestL = LoadDataset()
 
-epochs = 100
+epochs = 30
 accuracy = []
 
-for e in range(epochs):
-    for x in tqdm(range(len(Inputs)), desc="Epoch Progress"):
-        net.Backpropagate(Inputs[x], DesiredOutputs[x], 0.01)
+def exponential_decay(initial_lr, epoch, decay_rate):
+    return initial_lr * np.exp(-decay_rate * epoch)
 
-    acc = CalculateCost(net, TestInputs, TestDesiredOutputs)
+os.makedirs("Weights", exist_ok=True)
+os.makedirs("VisualWeights", exist_ok=True)
+os.makedirs("ProgressTracker", exist_ok=True)
+
+initial_lr = 1.5
+decay_rate = 0.15
+
+for e in range(epochs):
+    for x in tqdm(range(len(Train)), desc="Epoch Progress"):
+        net.Backpropagate(Train[x], TrainL[x], exponential_decay(initial_lr, e, decay_rate))
+
+    acc = CalculateCost(net, Test, TestL)
     accuracy.append(acc)
-    print(f"Epoch {e+1}/{epochs} Cost: {acc}\n")
+    print(f"Epoch {e+1}/{epochs} | Learning Rate: {exponential_decay(initial_lr, e, decay_rate)} | Cost: {acc}\n")
 
     net.SaveData("Weights")
     net.SaveImage("VisualWeights")

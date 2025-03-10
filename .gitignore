@@ -4,4 +4,6 @@
 *.exe
 *.txt
 *.npy
+*.npz
+*.ttf
 Dataset/
