@@ -6,6 +6,8 @@ import os
 import struct
 from array import array
 
+np.random.seed(51)
+
 def z_score_standardize(data):
     mean = np.mean(data, axis=0)
     std = np.std(data, axis=0)
@@ -89,12 +91,6 @@ class Network(object):
             a = sigmoid(z)
             activations.append(a)
 
-        print(desired_output.shape)
-        print(activations[-1].shape)
-        print(CalculateError(activations[-1], desired_output).shape)
-        print(sigmoid_prime(activations[-1]).shape)
-        print(((-2 * CalculateError(activations[-1], desired_output)) * sigmoid_prime(activations[-1])).shape)
-
         delta = (-2 * CalculateError(activations[-1], desired_output)) * sigmoid_prime(activations[-1])
         deltas = [delta]
         
@@ -108,15 +104,12 @@ class Network(object):
             self.biases[i]  += learning_rate * deltas[i]
 
     def SaveData(self, path):
-        os.makedirs(path, exist_ok=True)
         for k, x in enumerate(self.weights):
             np.save(os.path.join(path, f"weights{k}.npy"), x)
         for k, x in enumerate(self.biases):
             np.save(os.path.join(path, f"biases{k}.npy"), x)
     
-    def SaveImage(self, path):
-        os.makedirs(path, exist_ok=True)
-        
+    def SaveImage(self, path):        
         for k, x in enumerate(self.weights):
             plt.imshow(x, cmap='viridis', aspect='auto')
             plt.colorbar()
@@ -185,7 +178,10 @@ def ConvertDesiredIntoNeurons(Output):
                 neurons.append(np.array([0,0,0,0,0,0,0,0,0,1]).reshape(10,1))
     return neurons
 
-net = Network([784, 64, 64, 10])
+def DecayRate(initial, step, decay_rate):
+    return initial * (decay_rate ** step)
+
+net = Network([784, 32, 32, 10])
 
 MnistLoader = MnistDataloader("Dataset\\train-images.idx3-ubyte",
                               "Dataset\\train-labels.idx1-ubyte",
@@ -197,16 +193,27 @@ TestInputs = [z_score_standardize(np.array(x).reshape(784,1)) for x in Data[1][0
 DesiredOutputs = ConvertDesiredIntoNeurons(Data[0][1])
 TestDesiredOutputs = ConvertDesiredIntoNeurons(Data[1][1])
 
-epochs = 100
+epochs = 25
 accuracy = []
+initial_lr = 0.25
+decay = 0.85
+
+os.makedirs('ProgressTracker', exist_ok=True)
+os.makedirs('ProgressTracker\\Data', exist_ok=True)
+os.makedirs("Weights", exist_ok=True)
+os.makedirs("VisualWeights", exist_ok=True)
+
+acc = CalculateCost(net, TestInputs, TestDesiredOutputs)
+accuracy.append(acc)
+print(f"Initial Cost: {acc}\n")
 
 for e in range(epochs):
     for x in tqdm(range(len(Inputs)), desc="Epoch Progress"):
-        net.Backpropagate(Inputs[x], DesiredOutputs[x], 0.01)
+        net.Backpropagate(Inputs[x], DesiredOutputs[x], 0.1)
 
     acc = CalculateCost(net, TestInputs, TestDesiredOutputs)
     accuracy.append(acc)
-    print(f"Epoch {e+1}/{epochs} Cost: {acc}\n")
+    print(f"Epoch {e+1}/{epochs} | Cost: {acc} | LR: {DecayRate(initial_lr, e, decay)}\n")
 
     net.SaveData("Weights")
     net.SaveImage("VisualWeights")
@@ -216,4 +223,4 @@ for e in range(epochs):
     plt.ylabel('Accuracy %')
     plt.title('Accuracy Graph')
     plt.savefig(f"ProgressTracker\\{e}.png")
-    np.save(f"ProgressTracker\\{e}.npy", np.array(accuracy))
+    np.save(f"ProgressTracker\\Data\\{e}.npy", np.array(accuracy))
