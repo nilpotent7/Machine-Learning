@@ -3,19 +3,70 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-def sigmoid(z):
-    z = np.clip(z, -500, 500)
-    return 1.0 / (1.0 + np.exp(-z))
+from Model import NeuralNetwork
 
-def sigmoid_prime(a):
-    return a * (1 - a)
+def CalculateAccuracy(Network, Test, Desired):
+    correct = 0
+    total = 0
+    
+    for x, desired in zip(Test, Desired):
+        output = Network.Evaluate(x)
+        
+        predicted = np.argmax(output)
+        true_label = np.argmax(desired)
+        
+        if predicted == true_label: correct += 1
+        total += 1
+        
+    return correct / total
 
-def FindFiles(directory_path):
-    file_paths = []
-    for root, _, files in os.walk(directory_path):
-        for file in files:
-            file_paths.append(os.path.join(root, file))
-    return file_paths
+# Entire Network's Cost Function: Mean Squared Error
+def MeanSquaredError(Network, Test, Desired):
+    SumOfSum = 0
+    Total = 0
+    
+    for k,x in enumerate(Test):
+        desired = Desired[k]
+        result = Network.Evaluate(x)
+
+        overall_sum = 0
+        for x,y in zip(result, desired):
+            overall_sum += ((x-y)*(x-y))
+        
+        SumOfSum += overall_sum
+        Total += 1
+
+    return SumOfSum / Total
+
+# Entire Network's Cost Function: Cross Entropy Loss
+def CrossEntropyLoss(Network, Test, Desired):
+    total_cost = 0.0
+    total = 0
+    epsilon = 1e-12
+    
+    for k, x in enumerate(Test):
+        desired = Desired[k]
+        result = Network.Evaluate(x)
+        
+        cost = -np.sum(desired * np.log(result + epsilon))
+        total_cost += cost
+        total += 1
+        
+    return total_cost / total
+
+# Encode Desired Output into One-Hot neurons
+def EncodeOneHot(Output, Length):
+    outputs = np.array(Output)
+    neurons = np.eye(Length)[outputs]
+    return neurons.reshape(outputs.size, Length, 1)
+
+# Perform Z-Score Standardization on Input
+def Standardize(data):
+    mean = np.mean(data, axis=0)
+    std = np.std(data, axis=0)
+    std[std == 0] = 1
+    standardized_data = (data - mean) / std
+    return standardized_data
 
 def LoadDataset(path="dataset.npz"):
     data = np.load(path)
@@ -25,151 +76,49 @@ def LoadDataset(path="dataset.npz"):
     test_labels = [x.reshape(26, 1) for x in data["test_labels"]]
     return train_images, train_labels, test_images, test_labels
 
-class Network(object):
-    def __init__(self, sizes):
-        self.num_layers = len(sizes)
-        self.sizes = sizes
-        self.biases  = [np.random.randn(y, 1) for y in sizes[1:]]
-        self.weights = [np.random.randn(y, x) for x, y in zip(sizes[:-1], sizes[1:])]
-
-    def feedforward(self, a):
-        activations = [a]
-        for b, w in zip(self.biases, self.weights):
-            a = sigmoid(np.dot(w, a) + b)
-            activations.append(a)
-        return activations
-
-    def evaluate(self, a):
-        for i, (b, w) in enumerate(zip(self.biases, self.weights)):
-            a = sigmoid(np.dot(w, a) + b)
-        return a
-    
-    def Backpropagate(self, input, desired_output, learning_rate):
-        activations = [input]
-        a = input
-        for b, w in zip(self.biases, self.weights):
-            z = np.dot(w, a) + b
-            a = sigmoid(z)
-            activations.append(a)
-
-        delta = (-2 * CalculateError(activations[-1], desired_output)) * sigmoid_prime(activations[-1])
-        deltas = [delta]
-        
-        for l in range(2, self.num_layers):
-            sp = sigmoid_prime(activations[-l])
-            delta = np.dot(self.weights[-l+1].T, delta) * sp
-            deltas.insert(0, delta)
-        
-        for i in range(len(self.weights)):
-            self.weights[i] += learning_rate * np.dot(deltas[i], activations[i].T)
-            self.biases[i]  += learning_rate * deltas[i]
-
-    def SaveData(self, path):
-        for k, x in enumerate(self.weights):
-            np.save(os.path.join(path, f"weights{k}.npy"), x)
-        for k, x in enumerate(self.biases):
-            np.save(os.path.join(path, f"biases{k}.npy"), x)
-    
-    def SaveImage(self, path):        
-        for k, x in enumerate(self.weights):
-            plt.imshow(x, cmap='viridis', aspect='auto')
-            plt.colorbar()
-            plt.title(f'Weights {k}')
-            plt.savefig(os.path.join(path, f"weights{k}.png"))
-            plt.close()
-        
-        for k, x in enumerate(self.biases):
-            plt.figure(figsize=(len(x), 1))
-            plt.imshow(x.reshape(1, -1), cmap='viridis', aspect='auto')
-            plt.colorbar()
-            plt.title(f'Biases {k}')
-            plt.savefig(os.path.join(path, f"biases{k}.png"))
-            plt.close()
-
-    def LoadDataVar(self, b, w):
-        self.weights = w
-        self.biases = b
-
-    def LoadData(self, path):
-        allFiles = FindFiles(path)
-        weightsFiles = [x for x in allFiles if "weights" in x]
-        biasesFiles = [x for x in allFiles if "biases" in x]
-        self.weights = [np.load(w) for w in weightsFiles]
-        self.biases = [np.load(b) for b in biasesFiles]
-
-def CalculateError(result, desired): 
-    e = np.array(result) - np.array(desired)
-    return e
-
-def CalculateCost(Net, TestingSet, DesiredTSet):
-    SumOfSum = 0
-    Total = 0
-    
-    for k, x in enumerate(TestingSet):
-        desired = DesiredTSet[k]
-        result = Net.evaluate(x)
-        SumOfSum += np.sum((result - desired)**2)
-        Total += 1
-
-    return SumOfSum / Total
-
-def ConvertDesiredIntoNeurons(Output):
-    neurons = []
-    for o in Output:
-        match o:
-            case 0:
-                neurons.append(np.array([1,0,0,0,0,0,0,0,0,0]).reshape(10,1))
-            case 1:
-                neurons.append(np.array([0,1,0,0,0,0,0,0,0,0]).reshape(10,1))
-            case 2:
-                neurons.append(np.array([0,0,1,0,0,0,0,0,0,0]).reshape(10,1))
-            case 3:
-                neurons.append(np.array([0,0,0,1,0,0,0,0,0,0]).reshape(10,1))
-            case 4:
-                neurons.append(np.array([0,0,0,0,1,0,0,0,0,0]).reshape(10,1))
-            case 5:
-                neurons.append(np.array([0,0,0,0,0,1,0,0,0,0]).reshape(10,1))
-            case 6:
-                neurons.append(np.array([0,0,0,0,0,0,1,0,0,0]).reshape(10,1))
-            case 7:
-                neurons.append(np.array([0,0,0,0,0,0,0,1,0,0]).reshape(10,1))
-            case 8:
-                neurons.append(np.array([0,0,0,0,0,0,0,0,1,0]).reshape(10,1))
-            case 9:
-                neurons.append(np.array([0,0,0,0,0,0,0,0,0,1]).reshape(10,1))
-    return neurons
-
-net = Network([2500, 32, 32, 26])
-
 Train, TrainL, Test, TestL = LoadDataset()
 
-epochs = 30
-accuracy = []
+epochs = 25
+lossProgress = []
+accuracyProgress = []
 
-def exponential_decay(initial_lr, epoch, decay_rate):
-    return initial_lr * np.exp(-decay_rate * epoch)
+net = NeuralNetwork([2500, 32, 32, 26], NeuralNetwork.Sigmoid, NeuralNetwork.Softmax, NeuralNetwork.CrossEntropyLoss)
+net.UseSGD(LearningRate=1.5, DecayFunction=NeuralNetwork.ExponentialDecay, DecayRate=0.15)
+LossFunction = CrossEntropyLoss
 
 os.makedirs("Weights", exist_ok=True)
 os.makedirs("VisualWeights", exist_ok=True)
 os.makedirs("ProgressTracker", exist_ok=True)
 
-initial_lr = 1.5
-decay_rate = 0.15
-
-for e in range(epochs):
+for epoch in range(epochs):
     for x in tqdm(range(len(Train)), desc="Epoch Progress"):
-        net.Backpropagate(Train[x], TrainL[x], exponential_decay(initial_lr, e, decay_rate))
+        net.Train(Train[x], TrainL[x], epoch)
 
-    acc = CalculateCost(net, Test, TestL)
-    accuracy.append(acc)
-    print(f"Epoch {e+1}/{epochs} | Learning Rate: {exponential_decay(initial_lr, e, decay_rate)} | Cost: {acc}\n")
+    loss = LossFunction(net, Test[x], TestL[x])
+    lossProgress.append(loss)
 
-    net.SaveData("Weights")
-    net.SaveImage("VisualWeights")
+    acc = CalculateAccuracy(net, Test[x], TestL[x])
+    accuracyProgress.append(acc)
+    
+    print(f"Epoch {epoch+1}/{epochs} | Accuracy: {acc} | Loss: {loss}\n")
 
-    plt.plot(range(1, len(accuracy) + 1), accuracy, linestyle='-', color='b', label='Accuracy')
+    plt.figure()
+    plt.plot(range(1, len(lossProgress) + 1), lossProgress, linestyle='-', color='b', label='Loss')
     plt.xlabel('Epoch')
-    plt.ylabel('Accuracy %')
-    plt.title('Accuracy Graph')
-    plt.savefig(f"ProgressTracker\\{e}.png")
-    np.save(f"ProgressTracker\\{e}.npy", np.array(accuracy))
+    plt.ylabel('Loss')
+    plt.title('Loss over Epoch')
+    plt.savefig(f"Progress\\Loss\\{epoch}.png")
+    np.save(f"Progress\\Raw\\Loss\\{epoch}.npy", np.array(lossProgress))
+    plt.close()
+
+    plt.figure()
+    plt.plot(range(1, len(accuracyProgress) + 1), accuracyProgress, linestyle='-', color='b', label='Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.title('Accuracy over Epoch')
+    plt.savefig(f"Progress\\Accuracy\\{epoch}.png")
+    np.save(f"Progress\\Raw\\Accuracy\\{epoch}.npy", np.array(accuracyProgress))
+    plt.close()
+
+net.SaveData("Weights")
+net.SaveDataAsImage("VisualWeights")
