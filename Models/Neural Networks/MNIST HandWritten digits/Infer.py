@@ -1,9 +1,7 @@
 import os
-import struct
 import numpy as np
 import tkinter as tk
 from PIL import Image, ImageDraw, ImageTk, ImageFilter
-from array import array
 
 from Model import NeuralNetwork
 
@@ -13,7 +11,7 @@ def on_canvas_update(image):
     image = np.array(image, dtype=np.float64)
     image = image.reshape((28*28, 1)) / 255
     os.system("cls")
-    OutputResult(net.evaluate(image, True), c)
+    DecodeOneHot(net.evaluate(image, True), c)
 
 def create_brush_stamp(size=8, blur_radius=2):
     stamp = Image.new("L", (size, size), 0)
@@ -114,7 +112,7 @@ def LoadImageInput(Path):
     img = Image.open(Path).convert('L')
     img = img.resize((28, 28))
     img_array = np.array(img, dtype=np.float64)
-    img_array = Standardize(img_array.reshape((28*28, 1)))
+    img_array = ZScoreStandardize(img_array.reshape((28*28, 1)))
     return img_array
 
 # Decode One-Hot neurons and apply labels
@@ -172,12 +170,20 @@ def CrossEntropyLoss(Network, Test, Desired):
     return total_cost / total
 
 # Perform Z-Score Standardization on Input
-def Standardize(data):
+def ZScoreStandardize(data):
     mean = np.mean(data, axis=0)
     std = np.std(data, axis=0)
     std[std == 0] = 1
     standardized_data = (data - mean) / std
     return standardized_data
+
+# Perform Minimum Maximum Range Standardization on Input
+def MinMaxStandardize(data):
+    data_min = np.min(data)
+    data_max = np.max(data)
+    range_val = data_max - data_min
+    if range_val == 0: return np.zeros_like(data)
+    return (data - data_min) / range_val
 
 net = NeuralNetwork([784, 64, 64, 10], NeuralNetwork.Sigmoid, NeuralNetwork.Softmax, NeuralNetwork.CrossEntropyLoss)
 net.LoadData("Weights")

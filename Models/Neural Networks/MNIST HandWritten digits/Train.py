@@ -37,7 +37,7 @@ def MeanSquaredError(Network, Test, Desired):
         SumOfSum += overall_sum
         Total += 1
 
-    return SumOfSum / Total
+    return (SumOfSum / Total).item()
 
 # Entire Network's Cost Function: Cross Entropy Loss
 def CrossEntropyLoss(Network, Test, Desired):
@@ -62,18 +62,26 @@ def EncodeOneHot(Output, Length):
     return neurons.reshape(outputs.size, Length, 1)
 
 # Perform Z-Score Standardization on Input
-def Standardize(data):
+def ZScoreStandardize(data):
     mean = np.mean(data, axis=0)
     std = np.std(data, axis=0)
     std[std == 0] = 1
     standardized_data = (data - mean) / std
     return standardized_data
 
+# Perform Minimum Maximum Range Standardization on Input
+def MinMaxStandardize(data):
+    data_min = np.min(data)
+    data_max = np.max(data)
+    range_val = data_max - data_min
+    if range_val == 0: return np.zeros_like(data)
+    return (data - data_min) / range_val
+
 MnistLoader = MnistDataLoader("Dataset")
 Data = MnistLoader.LoadData()
 
-Inputs = [Standardize(np.array(x).reshape(784,1)) for x in Data[0][0]]
-TestInputs = [Standardize(np.array(x).reshape(784,1)) for x in Data[1][0]]
+Inputs = [MinMaxStandardize(np.array(x).reshape(784,1)) for x in Data[0][0]]
+TestInputs = [MinMaxStandardize(np.array(x).reshape(784,1)) for x in Data[1][0]]
 
 DesiredOutputs = EncodeOneHot(Data[0][1], 10)
 TestDesiredOutputs = EncodeOneHot(Data[1][1], 10)
@@ -89,7 +97,7 @@ lossProgress = []
 accuracyProgress = []
 
 net = NeuralNetwork([784, 64, 64, 10], NeuralNetwork.Sigmoid, NeuralNetwork.Softmax, NeuralNetwork.CrossEntropyLoss)
-net.UseSGD(LearningRate=0.01)
+net.UseAdamW(LearningRate=0.001)
 LossFunction = CrossEntropyLoss
 
 for epoch in range(epochs):
@@ -102,7 +110,7 @@ for epoch in range(epochs):
     acc = CalculateAccuracy(net, TestInputs, TestDesiredOutputs)
     accuracyProgress.append(acc)
     
-    print(f"Epoch {epoch+1}/{epochs} | Accuracy: {acc} | Loss: {loss}\n")
+    print(f"Epoch {epoch+1}/{epochs} | Accuracy: {acc:.4f} | Loss: {loss:.4f} | LR: {net.CurrentLearningRate(epoch):.4f}\n")
 
     plt.figure()
     plt.plot(range(1, len(lossProgress) + 1), lossProgress, linestyle='-', color='b', label='Loss')

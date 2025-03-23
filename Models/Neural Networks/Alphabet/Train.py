@@ -5,6 +5,14 @@ from tqdm import tqdm
 
 from Model import NeuralNetwork
 
+def LoadDataset(path="dataset.npz"):
+    data = np.load(path)
+    train_images = data["train_images"]
+    train_labels = [x.reshape(26, 1) for x in data["train_labels"]]
+    test_images = data["test_images"]
+    test_labels = [x.reshape(26, 1) for x in data["test_labels"]]
+    return MinMaxStandardize(train_images), MinMaxStandardize(train_labels), MinMaxStandardize(test_images), MinMaxStandardize(test_labels)
+
 def CalculateAccuracy(Network, Test, Desired):
     correct = 0
     total = 0
@@ -36,7 +44,7 @@ def MeanSquaredError(Network, Test, Desired):
         SumOfSum += overall_sum
         Total += 1
 
-    return SumOfSum / Total
+    return (SumOfSum / Total).item()
 
 # Entire Network's Cost Function: Cross Entropy Loss
 def CrossEntropyLoss(Network, Test, Desired):
@@ -61,46 +69,47 @@ def EncodeOneHot(Output, Length):
     return neurons.reshape(outputs.size, Length, 1)
 
 # Perform Z-Score Standardization on Input
-def Standardize(data):
+def ZScoreStandardize(data):
     mean = np.mean(data, axis=0)
     std = np.std(data, axis=0)
     std[std == 0] = 1
     standardized_data = (data - mean) / std
     return standardized_data
 
-def LoadDataset(path="dataset.npz"):
-    data = np.load(path)
-    train_images = data["train_images"]
-    train_labels = [x.reshape(26, 1) for x in data["train_labels"]]
-    test_images = data["test_images"]
-    test_labels = [x.reshape(26, 1) for x in data["test_labels"]]
-    return train_images, train_labels, test_images, test_labels
+# Perform Minimum Maximum Range Standardization on Input
+def MinMaxStandardize(data):
+    data_min = np.min(data)
+    data_max = np.max(data)
+    range_val = data_max - data_min
+    if range_val == 0: return np.zeros_like(data)
+    return (data - data_min) / range_val
 
 Train, TrainL, Test, TestL = LoadDataset()
+
+os.makedirs("Progress\\Raw\\Accuracy", exist_ok=True)
+os.makedirs("Progress\\Raw\\Loss", exist_ok=True)
+os.makedirs("Progress\\Accuracy", exist_ok=True)
+os.makedirs("Progress\\Loss", exist_ok=True)
 
 epochs = 25
 lossProgress = []
 accuracyProgress = []
 
-net = NeuralNetwork([2500, 32, 32, 26], NeuralNetwork.Sigmoid, NeuralNetwork.Softmax, NeuralNetwork.CrossEntropyLoss)
-net.UseSGD(LearningRate=1.5, DecayFunction=NeuralNetwork.ExponentialDecay, DecayRate=0.15)
+net = NeuralNetwork([2500, 16, 16, 26], NeuralNetwork.Sigmoid, NeuralNetwork.Softmax, NeuralNetwork.CrossEntropyLoss)
+net.UseSGD(LearningRate=1)
 LossFunction = CrossEntropyLoss
-
-os.makedirs("Weights", exist_ok=True)
-os.makedirs("VisualWeights", exist_ok=True)
-os.makedirs("ProgressTracker", exist_ok=True)
 
 for epoch in range(epochs):
     for x in tqdm(range(len(Train)), desc="Epoch Progress"):
         net.Train(Train[x], TrainL[x], epoch)
 
-    loss = LossFunction(net, Test[x], TestL[x])
+    loss = LossFunction(net, Test, TestL)
     lossProgress.append(loss)
 
-    acc = CalculateAccuracy(net, Test[x], TestL[x])
+    acc = CalculateAccuracy(net, Test, TestL)
     accuracyProgress.append(acc)
     
-    print(f"Epoch {epoch+1}/{epochs} | Accuracy: {acc} | Loss: {loss}\n")
+    print(f"Epoch {epoch+1}/{epochs} | Accuracy: {acc:.4f} | Loss: {loss:.4f} | LR: {net.CurrentLearningRate(epoch):.4f}\n")
 
     plt.figure()
     plt.plot(range(1, len(lossProgress) + 1), lossProgress, linestyle='-', color='b', label='Loss')

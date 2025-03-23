@@ -1,17 +1,17 @@
 import os
-import struct
 import numpy as np
 import tkinter as tk
 
+from Model import NeuralNetwork
 from PIL import Image, ImageDraw, ImageTk, ImageFilter
-from array import array
 
+#region Canvas
 def on_canvas_update(image):
-    image = image.resize((28,28))
+    image = image.resize((50,50))
     image = np.array(image, dtype=np.float64)
-    image = image.reshape((28*28, 1)) / 255
+    image = image.reshape((50*50, 1)) / 255
     os.system("cls")
-    OutputResult(net.evaluate(image, True), c)
+    DecodeOneHot(net.evaluate(image, True), c)
 
 def create_brush_stamp(size=8, blur_radius=2):
     stamp = Image.new("L", (size, size), 0)
@@ -20,10 +20,10 @@ def create_brush_stamp(size=8, blur_radius=2):
     stamp = stamp.filter(ImageFilter.GaussianBlur(blur_radius))
     return stamp
 
-def main():
+def CreateCanvas():
     root = tk.Tk()
-    root.title("Zoomed Drawing Canvas with Blurred Brush")
-    image_size = 28
+    root.title("Canvas")
+    image_size = 50
     zoom = 10
     canvas_width = image_size * zoom
     canvas_height = image_size * zoom
@@ -106,118 +106,90 @@ def main():
     toggle_button.pack(side="left", padx=5)
 
     root.mainloop()
-
-
-def sigmoid(z):
-    z = np.clip(z, -500, 500)
-    return 1.0 / (1.0 + np.exp(-z))
-
-def FindFiles(directory_path):
-    file_paths = []
-    for root, _, files in os.walk(directory_path):
-        for file in files:
-            file_paths.append(os.path.join(root, file))
-    return file_paths
-
-class Network(object):
-    def __init__(self, sizes):
-        self.num_layers = len(sizes)
-        self.sizes = sizes
-        self.biases  = [np.random.randn(y, 1) for y in sizes[1:]]
-        self.weights = [np.random.randn(y, x) for x, y in zip(sizes[:-1], sizes[1:])]
-        self.position = 0
-
-    def evaluate(self, a, rounded):
-        if(a.shape != (self.sizes[0],1)):
-            raise Exception("Input array shape does not correspond to neurons in input layer.")
-        
-        for b, w in zip(self.biases, self.weights):
-            a = sigmoid(np.dot(w, a)+b)
-        if rounded: o = np.round(a, decimals=4) * 100
-        else: o = a
-        return o
-
-    def LoadDataVar(self, b, w):
-        self.weights = w
-        self.biases = b
-    
-    def LoadData(self, path):
-        allFiles = FindFiles(path)
-        weightsFiles = [x for x in allFiles if "weights" in x]
-        biasesFiles = [x for x in allFiles if "biases" in x]
-        self.weights = [np.load(w) for w in weightsFiles]
-        self.biases = [np.load(b) for b in biasesFiles]
-
-def CalculateCost(Net, TestingSet, DesiredTSet):
-    SumOfSum = 0
-    Total = 0
-    
-    for k,x in enumerate(TestingSet):
-        desired = DesiredTSet[k]
-        result = Net.evaluate(x, False)
-        
-        overall_sum = 0
-        for x,y in zip(result, desired):
-            overall_sum += ((x-y)*(x-y))
-        
-        SumOfSum += overall_sum
-        Total +=1
-
-    return SumOfSum / Total
-
-def ConvertDesiredIntoNeurons(Output):
-    neurons = []
-    for o in Output:
-        match o:
-            case 0:
-                neurons.append(np.array([1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]).reshape(26,1))
-            case 1:
-                neurons.append(np.array([0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]).reshape(26,1))
-            case 2:
-                neurons.append(np.array([0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]).reshape(26,1))
-            case 3:
-                neurons.append(np.array([0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]).reshape(26,1))
-            case 4:
-                neurons.append(np.array([0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]).reshape(26,1))
-            case 5:
-                neurons.append(np.array([0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]).reshape(26,1))
-            case 6:
-                neurons.append(np.array([0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]).reshape(26,1))
-            case 7:
-                neurons.append(np.array([0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]).reshape(26,1))
-            case 8:
-                neurons.append(np.array([0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]).reshape(26,1))
-            case 9:
-                neurons.append(np.array([0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]).reshape(26,1))
-    return neurons
+#endregion
 
 def LoadImageInput(Path):
     img = Image.open(Path).convert('L')
     img = img.resize((50, 50))
     img_array = np.array(img, dtype=np.float64)
-    img_array = img_array.reshape((50*50, 1)) / 255
+    img_array = ZScoreStandardize(img_array.reshape((50*50, 1)))
     return img_array
 
-def PrintImage(Input, SavePath):
-    img_array = Input.reshape((28, 28))
-    img_array = img_array.astype(np.uint8)
-    img = Image.fromarray(img_array, mode='L')
-    img.save(SavePath)
-
-def OutputResult(output, characterMap):
+# Decode One-Hot neurons and apply labels
+def DecodeOneHot(output, characterMap):
     for k,o in enumerate(output):
-        print(f"{characterMap[k]} : {o}")
+        print(f"{characterMap[k]} : {o.item():.2f}")
 
-def ReadImage(fileName):
-    im = Image.open(fileName, 'r')
-    return [x[0] / 255 for x in list(im.getdata())]
+def CalculateAccuracy(Network, Test, Desired):
+    correct = 0
+    total = 0
+    
+    for x, desired in zip(Test, Desired):
+        output = Network.Evaluate(x)
+        
+        predicted = np.argmax(output)
+        true_label = np.argmax(desired)
+        
+        if predicted == true_label: correct += 1
+        total += 1
+        
+    return correct / total
 
+# Entire Network's Cost Function: Mean Squared Error
+def MeanSquaredError(Network, Test, Desired):
+    SumOfSum = 0
+    Total = 0
+    
+    for k,x in enumerate(Test):
+        desired = Desired[k]
+        result = Network.Evaluate(x)
 
-net = Network([2500, 32, 32, 26])
+        overall_sum = 0
+        for x,y in zip(result, desired):
+            overall_sum += ((x-y)*(x-y))
+        
+        SumOfSum += overall_sum
+        Total += 1
+
+    return SumOfSum / Total
+
+# Entire Network's Cost Function: Cross Entropy Loss
+def CrossEntropyLoss(Network, Test, Desired):
+    total_cost = 0.0
+    total = 0
+    epsilon = 1e-12
+    
+    for k, x in enumerate(Test):
+        desired = Desired[k]
+        result = Network.Evaluate(x)
+        
+        cost = -np.sum(desired * np.log(result + epsilon))
+        total_cost += cost
+        total += 1
+        
+    return total_cost / total
+
+# Perform Z-Score Standardization on Input
+def ZScoreStandardize(data):
+    mean = np.mean(data, axis=0)
+    std = np.std(data, axis=0)
+    std[std == 0] = 1
+    standardized_data = (data - mean) / std
+    return standardized_data
+
+# Perform Minimum Maximum Range Standardization on Input
+def MinMaxStandardize(data):
+    data_min = np.min(data)
+    data_max = np.max(data)
+    range_val = data_max - data_min
+    if range_val == 0: return np.zeros_like(data)
+    return (data - data_min) / range_val
+
+net = NeuralNetwork([2500, 64, 64, 26], NeuralNetwork.Sigmoid, NeuralNetwork.Softmax, NeuralNetwork.CrossEntropyLoss)
 net.LoadData("Weights")
 c = ["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z"]
 
 Input = LoadImageInput("Input.png")
-OutputResult(net.evaluate(Input, True), c)
+DecodeOneHot(net.Evaluate(Input), c)
 
-# main()
+# CreateCanvas()

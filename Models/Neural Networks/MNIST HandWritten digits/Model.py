@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 class NeuralNetwork(object):
 
     # Initialize random Weights & Biases
-    def __init__(self, sizes, HiddenActivation, FinalActivation, LossFunction):
+    def __init__(self, sizes, HiddenActivation, FinalActivation, LossFunction, DecayFunction = None, DecayRate = None):
         self.num_layers = len(sizes)
         self.sizes = sizes
         self.biases  = [np.random.randn(y, 1) for y in sizes[1:]]
@@ -13,15 +13,15 @@ class NeuralNetwork(object):
         self.ActivateHidden = HiddenActivation
         self.ActivateFinal = FinalActivation
         self.Loss = LossFunction
+        self.decay = DecayFunction if DecayFunction else self.IdentityDecay
+        self.decay_rate = DecayRate
 
         if(FinalActivation == self.Softmax and LossFunction != self.CrossEntropyLoss):
             raise Exception("Softmax requires CrossEntropyLoss for efficient derivative calculation")
 
-    def UseSGD(self, LearningRate, DecayFunction = self.IdentityDecay, DecayRate = None):
+    def UseSGD(self, LearningRate):
         self.optimizer = self.SGD
         self.learning_rate = LearningRate
-        self.decay = DecayFunction
-        self.rate = DecayRate
 
     def UseAdamW(self, LearningRate, Beta1=0.9, Beta2=0.999, Epsilon=1e-8, WeightDecay=0.01):
         self.optimizer = self.AdamW
@@ -61,7 +61,7 @@ class NeuralNetwork(object):
 
     # Mean Squared Error Loss Function & its Derivative
     @staticmethod
-    def MeanSquaredLoss(result, desired, Derivative):
+    def MeanSquaredError(result, desired, Derivative):
         if(Derivative): return 2 * (np.array(result) - np.array(desired))
         else: return (np.array(result) - np.array(desired))**2
 
@@ -71,6 +71,9 @@ class NeuralNetwork(object):
         epsilon = 1e-12
         if(Derivative): return result - desired
         else: return -np.sum(desired * np.log(result + epsilon))
+
+    def CurrentLearningRate(self, Epoch):
+        return self.decay(self.learning_rate, self.decay_rate, Epoch)
 
     # Forward Pass, storing output of each layer
     def FeedForward(self, a):
@@ -108,8 +111,8 @@ class NeuralNetwork(object):
         
         # Apply delta to each layer's parameters to adjust preferrable
         for i in range(len(self.weights)):
-            self.weights[i] -= self.decay(self.learning_rate, self.rate, Epoch) * np.dot(deltas[i], activations[i].T)
-            self.biases[i]  -= self.decay(self.learning_rate, self.rate, Epoch) * deltas[i]
+            self.weights[i] -= self.decay(self.learning_rate, self.decay_rate, Epoch) * np.dot(deltas[i], activations[i].T)
+            self.biases[i]  -= self.decay(self.learning_rate, self.decay_rate, Epoch) * deltas[i]
 
     # AdamW Algorithm
     def AdamW(self, Input, Desired, Epoch):
@@ -153,8 +156,8 @@ class NeuralNetwork(object):
             update_b = m_hat_b / (np.sqrt(v_hat_b) + self.epsilon) + self.weight_decay * self.biases[i]
             
             # Update parameters (subtract the update term)
-            self.weights[i] -= self.decay(self.learning_rate, self.rate, Epoch) * update_w
-            self.biases[i]  -= self.decay(self.learning_rate, self.rate, Epoch) * update_b
+            self.weights[i] -= self.decay(self.learning_rate, self.decay_rate, Epoch) * update_w
+            self.biases[i]  -= self.decay(self.learning_rate, self.decay_rate, Epoch) * update_b
 
     def FindFiles(self, Path):
         file_paths = []
@@ -179,7 +182,7 @@ class NeuralNetwork(object):
             plt.imshow(x, cmap='viridis', aspect='auto')
             plt.colorbar()
             plt.title(f'Weights {k}')
-            plt.savefig(os.path.join(path, f"weights{k}.png"))
+            plt.savefig(os.path.join(path, f"weights{k}.png"), dpi=1000)
             plt.close()
         
         for k, x in enumerate(self.biases):
@@ -187,7 +190,7 @@ class NeuralNetwork(object):
             plt.imshow(x.reshape(1, -1), cmap='viridis', aspect='auto')
             plt.colorbar()
             plt.title(f'Biases {k}')
-            plt.savefig(os.path.join(path, f"biases{k}.png"))
+            plt.savefig(os.path.join(path, f"biases{k}.png"), dpi=1000)
             plt.close()
 
     # Load Weights & Biases from Numpy files
