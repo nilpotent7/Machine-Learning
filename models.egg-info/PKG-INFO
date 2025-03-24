@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: models
+Version: 0.1.0
+Summary: A machine learning module containing different model templates.
+Home-page: https://github.com/nilpotent7/Machine-Learning
+Author: Nilpotent
+Requires-Dist: numpy
+Requires-Dist: matplotlib
+Dynamic: author
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: summary

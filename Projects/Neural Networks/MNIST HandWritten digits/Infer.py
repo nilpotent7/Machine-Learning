@@ -3,7 +3,7 @@ import numpy as np
 import tkinter as tk
 from PIL import Image, ImageDraw, ImageTk, ImageFilter
 
-from Model import NeuralNetwork
+from Models.NeuralNetwork import NeuralNetwork
 
 #region Canvas
 def on_canvas_update(image):

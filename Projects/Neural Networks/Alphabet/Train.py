@@ -3,8 +3,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from Model import NeuralNetwork
-from MNIST import MnistDataLoader
+from Models.NeuralNetwork import NeuralNetwork
+
+def LoadDataset(path="dataset.npz"):
+    data = np.load(path)
+    train_images = data["train_images"]
+    train_labels = [x.reshape(26, 1) for x in data["train_labels"]]
+    test_images = data["test_images"]
+    test_labels = [x.reshape(26, 1) for x in data["test_labels"]]
+    return MinMaxStandardize(train_images), MinMaxStandardize(train_labels), MinMaxStandardize(test_images), MinMaxStandardize(test_labels)
 
 def CalculateAccuracy(Network, Test, Desired):
     correct = 0
@@ -77,15 +84,7 @@ def MinMaxStandardize(data):
     if range_val == 0: return np.zeros_like(data)
     return (data - data_min) / range_val
 
-MnistLoader = MnistDataLoader("Dataset")
-Data = MnistLoader.LoadData()
-
-Inputs = [MinMaxStandardize(np.array(x).reshape(784,1)) for x in Data[0][0]]
-TestInputs = [MinMaxStandardize(np.array(x).reshape(784,1)) for x in Data[1][0]]
-
-DesiredOutputs = EncodeOneHot(Data[0][1], 10)
-TestDesiredOutputs = EncodeOneHot(Data[1][1], 10)
-
+Train, TrainL, Test, TestL = LoadDataset()
 
 os.makedirs("Progress\\Raw\\Accuracy", exist_ok=True)
 os.makedirs("Progress\\Raw\\Loss", exist_ok=True)
@@ -96,18 +95,18 @@ epochs = 25
 lossProgress = []
 accuracyProgress = []
 
-net = NeuralNetwork([784, 64, 64, 10], NeuralNetwork.Sigmoid, NeuralNetwork.Softmax, NeuralNetwork.CrossEntropyLoss)
-net.UseAdamW(LearningRate=0.001)
+net = NeuralNetwork([2500, 16, 16, 26], NeuralNetwork.Sigmoid, NeuralNetwork.Softmax, NeuralNetwork.CrossEntropyLoss)
+net.UseSGD(LearningRate=1)
 LossFunction = CrossEntropyLoss
 
 for epoch in range(epochs):
-    for i in tqdm(range(len(Inputs)), desc="Epoch Progress"):
-        net.Train(Inputs[i], DesiredOutputs[i], epoch)
+    for x in tqdm(range(len(Train)), desc="Epoch Progress"):
+        net.Train(Train[x], TrainL[x], epoch)
 
-    loss = LossFunction(net, TestInputs, TestDesiredOutputs)
+    loss = LossFunction(net, Test, TestL)
     lossProgress.append(loss)
 
-    acc = CalculateAccuracy(net, TestInputs, TestDesiredOutputs)
+    acc = CalculateAccuracy(net, Test, TestL)
     accuracyProgress.append(acc)
     
     print(f"Epoch {epoch+1}/{epochs} | Accuracy: {acc:.4f} | Loss: {loss:.4f} | LR: {net.CurrentLearningRate(epoch):.4f}\n")

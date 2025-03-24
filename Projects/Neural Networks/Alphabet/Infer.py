@@ -2,7 +2,7 @@ import os
 import numpy as np
 import tkinter as tk
 
-from Model import NeuralNetwork
+from Models.NeuralNetwork import NeuralNetwork
 from PIL import Image, ImageDraw, ImageTk, ImageFilter
 
 #region Canvas
