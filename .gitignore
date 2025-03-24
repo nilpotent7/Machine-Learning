@@ -1,4 +1,6 @@
 .vscode/
+Dataset/
+*.egg-info/
 *.png
 *.bmp
 *.exe
@@ -6,5 +8,4 @@
 *.npy
 *.npz
 *.ttf
-Dataset/
 *cache*
