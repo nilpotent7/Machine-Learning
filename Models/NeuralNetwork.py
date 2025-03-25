@@ -92,7 +92,7 @@ class NeuralNetwork(object):
         return a
 
     # Perform Backpropogation using the selected optimizer algorithm
-    def Train(self, Input, Desired, Epoch):
+    def Train(self, Input, Desired, Epoch=1):
         self.optimizer(Input, Desired, Epoch)
     
     # Stochastic Gradient Descent Algorithm
