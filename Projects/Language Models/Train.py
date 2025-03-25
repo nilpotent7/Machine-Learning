@@ -3,8 +3,17 @@ from tqdm import tqdm
 from Models.LanguageModels import ProbabilisticNeuralModel
 
 text = open("Train.txt", "r").read()
-Model = ProbabilisticNeuralModel(ProbabilisticNeuralModel.WordBasedTokenizer, 32, 4, [256], text)
-print(Model.vocabSize)
+Model = ProbabilisticNeuralModel(ProbabilisticNeuralModel.WordBasedTokenizer, 8, 32, [], text)
+
+def SplitData(Data, ratio):
+    split_index = int(len(Data) * ratio)
+    train_tokens = Data[:split_index]
+    eval_tokens = Data[split_index:]
+    return train_tokens, eval_tokens
+
+def GetBatch(Data, BatchSize):
+    for i in range(0, len(Data), BatchSize):
+        yield Data[i:i + BatchSize]
 
 Model.LoadData("Parameters")
 

@@ -60,6 +60,13 @@ class NeuralNetwork(object):
     @staticmethod
     def ExponentialDecay(Initial, Rate, Epoch):
         return Initial * np.exp(-Rate * Epoch)
+    
+    # Linear (Identity) Activation Function & its Derivative & its Gain (for standard deviation rescaling)
+    @staticmethod
+    def Linear(z, Type):
+        if(Type == 1): return np.ones_like(z)
+        if(Type == 2): return 1
+        return z
 
     # Sigmoid Activation Function & its Derivative & its Gain (for standard deviation rescaling)
     @staticmethod
