@@ -1,12 +1,12 @@
 from tqdm import tqdm
-from Models.NeuralBigram import NeuralBigramModel
+from Models.LanguageModels import NeuralBigramModel
 
 text = open("Train.txt", "r").read()
-Model = NeuralBigramModel(NeuralBigramModel.WordBasedTokenizer, text, 10, [])
+Model = NeuralBigramModel(NeuralBigramModel.WordBasedTokenizer, text, 1, [])
 
 print(Model.Generate("In natural language", 25))
 
-epochs = 250
+epochs = 1000
 for e in tqdm(range(epochs), desc="Training"):
     Model.Train(text)
 

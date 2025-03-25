@@ -6,18 +6,32 @@ class NeuralNetwork(object):
 
     # Initialize random Weights & Biases
     def __init__(self, sizes, HiddenActivation, FinalActivation, LossFunction, DecayFunction = None, DecayRate = None):
+        if(FinalActivation == self.Softmax and LossFunction != self.CrossEntropyLoss):
+            raise Exception("Softmax requires CrossEntropyLoss for efficient derivative calculation")
+        
         self.num_layers = len(sizes)
         self.sizes = sizes
+        
+        # Randomly initializing weights and biases
         self.biases  = [np.random.randn(y, 1) for y in sizes[1:]]
         self.weights = [np.random.randn(y, x) for x, y in zip(sizes[:-1], sizes[1:])]
+
         self.ActivateHidden = HiddenActivation
         self.ActivateFinal = FinalActivation
         self.Loss = LossFunction
         self.decay = DecayFunction if DecayFunction else self.IdentityDecay
         self.decay_rate = DecayRate
 
-        if(FinalActivation == self.Softmax and LossFunction != self.CrossEntropyLoss):
-            raise Exception("Softmax requires CrossEntropyLoss for efficient derivative calculation")
+        self.RescaleParameters()
+        
+    def RescaleParameters(self):
+        for i in range(len(self.weights)):
+            if(i == len(self.weights)-1): 0.01
+            else: self.weights[i] *= self.ActivateHidden(None, 2) / self.weights[i].shape[0]**0.5
+
+        for i in range(len(self.biases)):
+            if(i == len(self.biases)-1): 0
+            else: self.biases[i] *= 0.01
 
     def UseSGD(self, LearningRate):
         self.optimizer = self.SGD
@@ -47,15 +61,31 @@ class NeuralNetwork(object):
     def ExponentialDecay(Initial, Rate, Epoch):
         return Initial * np.exp(-Rate * Epoch)
 
-    # Sigmoid Activation Function & its Derivative
+    # Sigmoid Activation Function & its Derivative & its Gain (for standard deviation rescaling)
     @staticmethod
-    def Sigmoid(z, Derivative):
-        if(Derivative): return z * (1 - z)
-        else: return 1.0 / (1.0 + np.exp(-z))
+    def Sigmoid(z, Type):
+        if(Type == 1): return z * (1 - z)
+        if(Type == 2): return 1
+        return 1.0 / (1.0 + np.exp(-z))
+
+    # Tanh Activation Function & its Derivative & its Gain (for standard deviation rescaling)
+    @staticmethod
+    def Tanh(z, Type):
+        if(Type == 1): return 1 - z**2
+        if(Type == 2): return 5/3
+        return np.tanh(z)
+
+    # ReLU Activation Function & its Derivative & its Gain (for standard deviation rescaling)
+    @staticmethod
+    def ReLU(z, Type):
+        if(Type == 1): return (z > 0).astype(float)
+        if(Type == 2): return np.sqrt(2)
+        return np.maximum(0, z)
 
     # Softmax Activation Function. Derivative is avoided when its coupled with CrossEntropyLoss
     @staticmethod
-    def Softmax(z, Derivative):
+    def Softmax(z, Type):
+        if(Type == 2): return 1
         exp_z = np.exp(z - np.max(z, axis=0, keepdims=True))
         return exp_z / np.sum(exp_z, axis=0, keepdims=True)
 
@@ -80,7 +110,10 @@ class NeuralNetwork(object):
         activations = [a]
         for i, (b, w) in enumerate(zip(self.biases, self.weights)):
             z = np.dot(w, a) + b
-            a = self.ActivateFinal(z, False) if (i == len(self.weights) - 1) else self.ActivateHidden(z, False)
+            if i == len(self.weights) - 1:
+                a = self.ActivateFinal(z, False)
+            else:
+                a = self.ActivateHidden(z, False)
             activations.append(a)
         return activations
 
@@ -88,43 +121,50 @@ class NeuralNetwork(object):
     def Evaluate(self, a):
         for i, (b, w) in enumerate(zip(self.biases, self.weights)):
             z = np.dot(w, a) + b
-            a = self.ActivateFinal(z, False) if (i == len(self.weights) - 1) else self.ActivateHidden(z, False)
+            if i == len(self.weights) - 1:
+                a = self.ActivateFinal(z, False)
+            else:
+                a = self.ActivateHidden(z, False)
         return a
 
     # Perform Backpropogation using the selected optimizer algorithm
     def Train(self, Input, Desired, Epoch=1):
-        self.optimizer(Input, Desired, Epoch)
+        return self.optimizer(Input, Desired, Epoch)
     
-    # Stochastic Gradient Descent Algorithm
+    # Stochastic Gradient Descent Algorithm with optional gradient output for the input.
     def SGD(self, Input, Desired, Epoch):
         activations = self.FeedForward(Input)
-
-        # Gradient = (Derivative of Loss) * (Derivative of Activation)
-        delta = self.Loss(activations[-1], Desired, True) * self.ActivateFinal(activations[-1], True)
+        
+        # Compute gradient for output layer
+        delta = self.Loss(activations[-1], Desired, True) * self.ActivateFinal(activations[-1], 1)
         deltas = [delta]
         
-        # Apply gradient to each layer's output to get delta
+        # Backpropagate through hidden layers
         for l in range(2, self.num_layers):
-            sp = self.ActivateHidden(activations[-l], True)
+            sp = self.ActivateHidden(activations[-l], 1)
             delta = np.dot(self.weights[-l+1].T, delta) * sp
             deltas.insert(0, delta)
         
-        # Apply delta to each layer's parameters to adjust preferrable
+        # Update each layer's weights and biases
         for i in range(len(self.weights)):
-            self.weights[i] -= self.decay(self.learning_rate, self.decay_rate, Epoch) * np.dot(deltas[i], activations[i].T)
-            self.biases[i]  -= self.decay(self.learning_rate, self.decay_rate, Epoch) * deltas[i]
+            lr = self.decay(self.learning_rate, self.decay_rate, Epoch)
+            self.weights[i] -= lr * np.dot(deltas[i], activations[i].T)
+            self.biases[i]  -= lr * deltas[i]
+
+        grad_input = np.dot(self.weights[0].T, deltas[0])
+        return grad_input
 
     # AdamW Algorithm
     def AdamW(self, Input, Desired, Epoch):
         activations = self.FeedForward(Input)
         
         # Gradient = (Derivative of Loss) * (Derivative of Activation)
-        delta = self.Loss(activations[-1], Desired, True) * self.ActivateFinal(activations[-1], True)
+        delta = self.Loss(activations[-1], Desired, True) * self.ActivateFinal(activations[-1], 1)
         deltas = [delta]
         
         # Apply gradient to each layer's output to get delta
         for l in range(2, self.num_layers):
-            sp = self.ActivateHidden(activations[-l], True)
+            sp = self.ActivateHidden(activations[-l], 1)
             delta = np.dot(self.weights[-l+1].T, delta) * sp
             deltas.insert(0, delta)
         
@@ -166,13 +206,12 @@ class NeuralNetwork(object):
                 file_paths.append(os.path.join(root, file))
         return file_paths
 
-    # Save Weights & Biases as Numpy files
-    def SaveData(self, path):
+    # Save Weights & Biases as Numpy Zipped file
+    def SaveData(self, path, filename="neurons.npz"):
         os.makedirs(path, exist_ok=True)
-        for k, x in enumerate(self.weights):
-            np.save(os.path.join(path, f"weights{k}.npy"), x)
-        for k, x in enumerate(self.biases):
-            np.save(os.path.join(path, f"biases{k}.npy"), x)
+        w = np.array(self.weights, dtype=object)
+        b = np.array(self.biases, dtype=object)
+        np.savez_compressed(os.path.join(path, filename), weights=w, biases=b)
     
     # Save Weights & Biases as an Image
     def SaveDataAsImage(self, path, dpi=250):
@@ -193,11 +232,8 @@ class NeuralNetwork(object):
             plt.savefig(os.path.join(path, f"biases{k}.png"), dpi=dpi)
             plt.close()
 
-    # Load Weights & Biases from Numpy files
-    def LoadData(self, path):
-        allFiles = self.FindFiles(path)
-        if(not allFiles): raise Exception("No parameters found in the given directory")
-        weightsFiles = [x for x in allFiles if "weights" in x]
-        biasesFiles = [x for x in allFiles if "biases" in x]
-        self.weights = [np.load(w) for w in weightsFiles]
-        self.biases = [np.load(b) for b in biasesFiles]
+    # Load Weights & Biases from Numpy Zipped File
+    def LoadData(self, path, filename="neurons.npz"):
+        data = np.load(os.path.join(path, filename), allow_pickle=True)
+        self.weights = data['weights'].tolist()
+        self.biases = data['biases'].tolist()
