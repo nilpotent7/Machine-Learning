@@ -1,6 +1,14 @@
-from Models.LanguageModels import ProbabilisticNeuralModel
+from Models.Transformer2 import TransformerModel, WordBasedTokenizer
 
-Model = ProbabilisticNeuralModel(ProbabilisticNeuralModel.WordBasedTokenizer, 32, 4, [256])
-Model.LoadData("Parameters")
+sample_text = "In natural language processing, a word embedding is a representation of a word. The embedding is used in text analysis. Typically, the representation is a real-valued vector that encodes the meaning of the word in such a way that the words that are closer in the vector space are expected to be similar in meaning."
+model = TransformerModel.FromSavedModel("model.npz")
+tokenizer = WordBasedTokenizer(sample_text)
+prompt = "natural language is used in a"
+    
+start_tokens = tokenizer.Tokenize(prompt)[:-1]
+print(f"\nGenerating text from prompt: '{prompt}'")
+generated = model.Generate(start_tokens, MaxTokens=50)
 
-print(Model.Generate("Breaking fundamental components of NLP such as deep learning and language-based models, allows nuances of spoken language to be", 2500))
+generated_words = tokenizer.Untokenize(generated)
+
+print(f"Generated text: {''.join(generated_words).strip()}")

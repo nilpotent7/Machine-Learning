@@ -1,37 +1,36 @@
-import matplotlib.pyplot as plt
+import numpy as np
 from tqdm import tqdm
-from Models.LanguageModels import ProbabilisticNeuralModel
+from Models.Transformer import TransformerModel, WordBasedTokenizer
 
-text = open("Train.txt", "r").read()
-Model = ProbabilisticNeuralModel(ProbabilisticNeuralModel.WordBasedTokenizer, 8, 32, [], text)
+def GetRandomBatch(Data, ContextSize, BatchSize):
+    ix = np.random.randint(0, len(Data) - ContextSize, size=(BatchSize,))
+    x = np.stack([Data[i:i+ContextSize] for i in ix])
+    y = np.stack([Data[i+1:i+ContextSize+1] for i in ix])
+    return x,y
 
-def SplitData(Data, ratio):
-    split_index = int(len(Data) * ratio)
-    train_tokens = Data[:split_index]
-    eval_tokens = Data[split_index:]
-    return train_tokens, eval_tokens
+FullDataSet = "In natural language processing, a word embedding is a representation of a word. The embedding is used in text analysis. Typically, the representation is a real-valued vector that encodes the meaning of the word in such a way that the words that are closer in the vector space are expected to be similar in meaning."
+tokenizer = WordBasedTokenizer(FullDataSet)
 
-def GetBatch(Data, BatchSize):
-    for i in range(0, len(Data), BatchSize):
-        yield Data[i:i + BatchSize]
+HeadSize = 16
+EmbeddingSize = 8
+Context = 4
 
-Model.LoadData("Parameters")
+Model = TransformerModel(tokenizer.GetLength(), Context, EmbeddingSize, HeadSize)
+Model.LoadModel("Parameters")
 
-loss = []
-epochs = 100
-Model.PrepareTraining(text, 2.5)
-for e in tqdm(range(epochs), desc="Training"):
-    Model.Train()
-    loss.append(Model.LikelihoodLoss(text))
+FullDataSet = tokenizer.Tokenize(FullDataSet)
 
-print(f"Final Loss: {Model.LikelihoodLoss(text):.6f}")
+N = int(0.9*len(FullDataSet))
+Train = FullDataSet[:N]
+Test = FullDataSet[N:][:FullDataSet.index(0) + 1]
 
-if(input("Save? (Y/N)\n").lower() == "y"): 
-    Model.SaveData("Parameters")
+BatchSize = 4
 
-plt.plot(loss, label="Loss")
-plt.xlabel("Epochs")
-plt.ylabel("Loss")
-plt.title("Loss over Epochs")
-plt.savefig("Progress.png")
-plt.close()
+Xs, Ys = GetRandomBatch(Train, Context, BatchSize)
+
+Test = False
+for epoch in tqdm(range(5000), desc="Training Progress"):
+    for i in range(len(Ys)):
+        Model.Train(Xs[i], Ys[i], LearningRate=0.1)
+
+Model.SaveModel("Parameters")
